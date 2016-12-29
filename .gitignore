@@ -1,0 +1,8 @@
+# OSX Trash
+.DS_STORE
+
+# VS Code Files
+.vs_code
+
+data.json
+es-fetchbot
