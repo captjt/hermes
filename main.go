@@ -384,15 +384,29 @@ func scraper(url string) bool {
 	// Set up the pipeline to consume back-to-back output
 	// ending with the final stage to print the results of
 	// each web page in the main go routine.
+
+	var doc Document
+
+	contents := make([]string, 0)
+
 	for title := range titleGenerator(rootGenerator(respGenerator(url))) {
-		fmt.Println("Title: \n", title)
+		doc.title = title
 	}
 	for para := range paragraphGenerator(rootGenerator(respGenerator(url))) {
-		fmt.Println("Paragraphs: \n", para)
+		contents = append(contents, para)
 	}
+
 	for row := range rowsGenerator(rootGenerator(respGenerator(url))) {
-		fmt.Println("Divs: ", row)
+		contents = append(contents, row)
 	}
+
+	// combine all the paragraphs from the page
+	content := strings.Join(contents, " ")
+	doc.content = content
+
+	doc.link = url
+
+	fmt.Println(doc)
 
 	return true
 }
