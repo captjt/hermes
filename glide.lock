@@ -1,0 +1,19 @@
+hash: a12cc6b7753f36b955512567aa99bce43f8a1a64edca1aa1bc8c169fefa87cee
+updated: 2016-12-29T10:56:35.591599141-05:00
+imports:
+- name: github.com/andybalholm/cascadia
+  version: 349dd0209470eabd9514242c688c403c0926d266
+- name: github.com/PuerkitoBio/fetchbot
+  version: 259e93bccc058eb7cecbf2eca5f7703c8987c05f
+- name: github.com/PuerkitoBio/goquery
+  version: 152b1a2c8f5d0340f658bb656032a39b94e52958
+- name: github.com/temoto/robotstxt-go
+  version: 99f6b48954d8cafb2f10790957aa747ca7aeb530
+- name: github.com/yhat/scrape
+  version: 24b7890b0945459dbf91743e4d2ac5d75a51fee2
+- name: golang.org/x/net
+  version: cfae461cedfdcab6e261a26eb77db53695623303
+  subpackages:
+  - html
+  - html/atom
+testImports: []

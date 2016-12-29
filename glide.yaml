@@ -1,0 +1,4 @@
+package: es-fetchbot
+import:
+- package: github.com/PuerkitoBio/fetchbot
+- package: github.com/yhat/scrape
