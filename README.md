@@ -1,6 +1,6 @@
 # [Hermes](https://en.wikipedia.org/wiki/Hermes) 🏃💨
 
-![Logo](docs/static_files/power-to-the-masses.png | width=48)
+![Boom](./docs/static_files/power-to-the-masses.png)
 
 This is a combination of a couple awesome packages [scrape](https://github.com/yhat/scrape) and [fetchbot](https://github.com/PuerkitoBio/fetchbot) that will crawl a list of links and scrape the pages.
 
