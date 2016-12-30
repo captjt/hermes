@@ -74,9 +74,14 @@ func main() {
 			log.Fatal(err)
 		}
 
-		crawl(u.String(), *u)
+		done := crawl(u.String(), *u)
+		if done {
+			continue
+		}
 	}
 
+	fmt.Print("\n\n\n\n=> Finished.\n")
+	fmt.Println(ingestionSet)
 }
 
 func parseJSON() Sources {
@@ -94,7 +99,7 @@ func parseJSON() Sources {
 	return s
 }
 
-func crawl(url string, u url.URL) {
+func crawl(url string, u url.URL) bool {
 	flag.Parse()
 
 	// Create the muxer
@@ -166,6 +171,8 @@ func crawl(url string, u url.URL) {
 		fmt.Printf("[ERR] GET %s - %s\n", url, err)
 	}
 	q.Block()
+
+	return true
 }
 
 // stopHandler stops the fetcher if the stopurl is reached. Otherwise it dispatches
