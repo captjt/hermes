@@ -1,4 +1,4 @@
-package: es-fetchbot
+package: hermes
 import:
 - package: github.com/PuerkitoBio/fetchbot
 - package: github.com/yhat/scrape
