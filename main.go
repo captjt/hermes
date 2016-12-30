@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -9,7 +8,6 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -46,7 +44,8 @@ var (
 	// Protect access to dup
 	mu sync.Mutex
 	// Duplicates table
-	dup = map[string]bool{}
+	dup          = map[string]bool{}
+	ingestionSet indexType
 
 	// Command-line flags
 	cancelAfter = flag.Duration("cancelafter", 0, "automatically cancel the fetchbot after a given time")
@@ -57,8 +56,10 @@ var (
 )
 
 func main() {
+	// parse the link json file to pass into the crawler
 	src := parseJSON()
 
+	// start the crawler
 	for _, s := range src.Links {
 		u, err := url.Parse(s.Url)
 		if err != nil {
@@ -67,6 +68,7 @@ func main() {
 
 		crawl(u.String(), *u)
 	}
+
 }
 
 func parseJSON() Sources {
@@ -119,28 +121,15 @@ func crawl(url string, u url.URL) {
 		}))
 
 	// Create the Fetcher, handle the logging first, then dispatch to the Muxer
-	h := logHandler(mux)
+	h := scrapeHandler(mux)
 	if *stopAtURL != "" || *cancelAtURL != "" {
 		stopURL := *stopAtURL
 		if *cancelAtURL != "" {
 			stopURL = *cancelAtURL
 		}
-		h = stopHandler(stopURL, *cancelAtURL != "", logHandler(mux))
+		h = stopHandler(stopURL, *cancelAtURL != "", scrapeHandler(mux))
 	}
 	f := fetchbot.New(h)
-
-	// First mem stat print must be right after creating the fetchbot
-	if *memStats > 0 {
-		// Print starting stats
-		printMemStats(nil)
-		// Run at regular intervals
-		runMemStats(f, *memStats)
-		// On exit, print ending stats after a GC
-		defer func() {
-			runtime.GC()
-			printMemStats(nil)
-		}()
-	}
 
 	// Start processing
 	q := f.Start()
@@ -171,47 +160,6 @@ func crawl(url string, u url.URL) {
 	q.Block()
 }
 
-func runMemStats(f *fetchbot.Fetcher, tick time.Duration) {
-	var mu sync.Mutex
-	var di *fetchbot.DebugInfo
-
-	// Start goroutine to collect fetchbot debug info
-	go func() {
-		for v := range f.Debug() {
-			mu.Lock()
-			di = v
-			mu.Unlock()
-		}
-	}()
-	// Start ticker goroutine to print mem stats at regular intervals
-	go func() {
-		c := time.Tick(tick)
-		for _ = range c {
-			mu.Lock()
-			printMemStats(di)
-			mu.Unlock()
-		}
-	}()
-}
-
-func printMemStats(di *fetchbot.DebugInfo) {
-	fmt.Println("hitting in print mem stats...")
-	var mem runtime.MemStats
-	runtime.ReadMemStats(&mem)
-	buf := bytes.NewBuffer(nil)
-	buf.WriteString(strings.Repeat("=", 72) + "\n")
-	buf.WriteString("Memory Profile:\n")
-	buf.WriteString(fmt.Sprintf("\tAlloc: %d Kb\n", mem.Alloc/1024))
-	buf.WriteString(fmt.Sprintf("\tTotalAlloc: %d Kb\n", mem.TotalAlloc/1024))
-	buf.WriteString(fmt.Sprintf("\tNumGC: %d\n", mem.NumGC))
-	buf.WriteString(fmt.Sprintf("\tGoroutines: %d\n", runtime.NumGoroutine()))
-	if di != nil {
-		buf.WriteString(fmt.Sprintf("\tNumHosts: %d\n", di.NumHosts))
-	}
-	buf.WriteString(strings.Repeat("=", 72))
-	fmt.Println(buf.String())
-}
-
 // stopHandler stops the fetcher if the stopurl is reached. Otherwise it dispatches
 // the call to the wrapped Handler.
 func stopHandler(stopurl string, cancel bool, wrapped fetchbot.Handler) fetchbot.Handler {
@@ -233,17 +181,18 @@ func stopHandler(stopurl string, cancel bool, wrapped fetchbot.Handler) fetchbot
 	})
 }
 
-// logHandler prints the fetch information and dispatches the call to the wrapped Handler.
-func logHandler(wrapped fetchbot.Handler) fetchbot.Handler {
+// scrapeHandler will fire a scraper method on the page if successful response,
+// append the scraped document stored for index ingestion
+// and dispatches the call to the wrapped Handler.
+func scrapeHandler(wrapped fetchbot.Handler) fetchbot.Handler {
 	return fetchbot.HandlerFunc(func(ctx *fetchbot.Context, res *http.Response, err error) {
 		if err == nil {
 			if res.StatusCode == 200 {
 				url := ctx.Cmd.URL().String()
-				fmt.Println("url ... \n    ... ", url)
 				response := scraper(url)
-				_ = response
+				ingestionSet.Documents = append(ingestionSet.Documents, response)
 			}
-			fmt.Printf("[%d] %s %s - %s\n", res.StatusCode, ctx.Cmd.Method(), ctx.Cmd.URL(), res.Header.Get("Content-Type"))
+			// fmt.Printf("[%d] %s %s - %s\n", res.StatusCode, ctx.Cmd.Method(), ctx.Cmd.URL(), res.Header.Get("Content-Type"))
 		}
 		wrapped.Handle(ctx, res, err)
 	})
@@ -380,11 +329,7 @@ func rowsGenerator(in <-chan *html.Node) <-chan string {
 	return out
 }
 
-func scraper(url string) bool {
-	// Set up the pipeline to consume back-to-back output
-	// ending with the final stage to print the results of
-	// each web page in the main go routine.
-
+func scraper(url string) Document {
 	var doc Document
 
 	contents := make([]string, 0)
@@ -403,10 +348,7 @@ func scraper(url string) bool {
 	// combine all the paragraphs from the page
 	content := strings.Join(contents, " ")
 	doc.content = content
-
 	doc.link = url
 
-	fmt.Println(doc)
-
-	return true
+	return doc
 }
