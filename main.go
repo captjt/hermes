@@ -189,7 +189,7 @@ func stopHandler(stopurl string, cancel bool, wrapped fetchbot.Handler) fetchbot
 	})
 }
 
-// scrapeHandler will fire a scraper method on the page if successful response,
+// scrapeHandler will fire a scraper function on the page if successful response,
 // append the scraped document stored for index ingestion
 // and dispatches the call to the wrapped Handler.
 func scrapeHandler(wrapped fetchbot.Handler) fetchbot.Handler {
