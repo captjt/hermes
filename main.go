@@ -20,13 +20,9 @@ import (
 	"github.com/yhat/scrape"
 )
 
-type Link struct {
-	Type string
-	Url  string
-}
-
 type Sources struct {
-	Links []Link
+	Type  string
+	Links []string
 }
 
 type Document struct {
@@ -61,7 +57,7 @@ func main() {
 
 	// start the crawler
 	for _, s := range src.Links {
-		u, err := url.Parse(s.Url)
+		u, err := url.Parse(s)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -190,7 +186,13 @@ func scrapeHandler(wrapped fetchbot.Handler) fetchbot.Handler {
 			if res.StatusCode == 200 {
 				url := ctx.Cmd.URL().String()
 				response := scraper(url)
-				ingestionSet.Documents = append(ingestionSet.Documents, response)
+				// TODO: store/log the bad sites with null fields
+				if response.content != "" && response.title != "" && response.link != "" {
+					fmt.Println("New page was scraped!")
+					fmt.Println(response)
+					ingestionSet.Documents = append(ingestionSet.Documents, response)
+					fmt.Println("Total Pages Scraped Successfully: ", len(ingestionSet.Documents))
+				}
 			}
 			// fmt.Printf("[%d] %s %s - %s\n", res.StatusCode, ctx.Cmd.Method(), ctx.Cmd.URL(), res.Header.Get("Content-Type"))
 		}
