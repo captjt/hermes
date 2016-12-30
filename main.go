@@ -20,20 +20,32 @@ import (
 	"github.com/yhat/scrape"
 )
 
+// Sources struct to model a Type we want to ingest into the elasticsearch index
+// and the links we want to crawl/scrape information to store in our index/type
 type Sources struct {
 	Type  string
 	Links []string
 }
 
+// Document stuct to model our single "Document" store we will ingestion into the
+// elasticsearch index/type
 type Document struct {
 	title   string
 	content string
 	link    string
 }
 
-type indexType struct {
+// IndexType struct to model our ingestion set for multiple types and Documents
+// for our index
+type IndexType struct {
 	DocType   string
 	Documents []Document
+}
+
+// Index struct to model each index ingestion set for our elasticsearch data
+type Index struct {
+	Index string
+	Type  IndexType
 }
 
 var (
@@ -41,7 +53,7 @@ var (
 	mu sync.Mutex
 	// Duplicates table
 	dup          = map[string]bool{}
-	ingestionSet indexType
+	ingestionSet IndexType
 
 	// Command-line flags
 	cancelAfter = flag.Duration("cancelafter", 0, "automatically cancel the fetchbot after a given time")
@@ -267,6 +279,9 @@ func rootGenerator(in <-chan *http.Response) <-chan *html.Node {
 	return out
 }
 
+// paragraphGenerator functino will take in a channel with a pointer to an html.Node
+// type it will use scrape's ByTag API function and scrape all the Title tags from
+// the Node and return a channel with a type string
 func titleGenerator(in <-chan *html.Node) <-chan string {
 	var wg sync.WaitGroup
 	out := make(chan string)
@@ -287,6 +302,9 @@ func titleGenerator(in <-chan *html.Node) <-chan string {
 	return out
 }
 
+// paragraphGenerator functino will take in a channel with a pointer to an html.Node
+// type it will use scrape's ByTag API function and scrape all the P tags from
+// the Node and return a channel with a type string
 func paragraphGenerator(in <-chan *html.Node) <-chan string {
 	var wg sync.WaitGroup
 	out := make(chan string)
@@ -309,6 +327,9 @@ func paragraphGenerator(in <-chan *html.Node) <-chan string {
 	return out
 }
 
+// rowGenerator function will take in a channel with a pointer to an html.Node
+// type it will use scrape's ByTag API function and scrape all the Content tags from
+// the Node and return a channel with a type string
 func rowsGenerator(in <-chan *html.Node) <-chan string {
 	var wg sync.WaitGroup
 	out := make(chan string)
@@ -331,6 +352,8 @@ func rowsGenerator(in <-chan *html.Node) <-chan string {
 	return out
 }
 
+// scraper function will take a url and fire off pipelines to scrape titles,
+// paragraphs, divs and return a Document struct with valid title, content and a link
 func scraper(url string) Document {
 	var doc Document
 
