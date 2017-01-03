@@ -9,7 +9,9 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -20,6 +22,8 @@ import (
 	"github.com/PuerkitoBio/fetchbot"
 	"github.com/PuerkitoBio/goquery"
 	"github.com/yhat/scrape"
+
+	"gopkg.in/olivere/elastic.v3"
 )
 
 type (
@@ -47,6 +51,7 @@ type (
 
 	// Index struct to model each index ingestion set for our elasticsearch data
 	Index struct {
+		Host  string
 		Index string
 		Type  IndexType
 	}
@@ -55,6 +60,7 @@ type (
 var (
 	// Protect access to dup
 	mu sync.Mutex
+
 	// Duplicates table
 	dup = map[string]bool{}
 
@@ -67,9 +73,9 @@ var (
 	// Command-line flags
 	cancelAfter   = flag.Duration("cancelafter", 0, "automatically cancel the fetchbot after a given time")
 	cancelAtURL   = flag.String("cancelat", "", "automatically cancel the fetchbot at a given URL")
-	stopAfter     = flag.Duration("stopafter", time.Minute/2, "automatically stop the fetchbot after a given time")
+	stopAfter     = flag.Duration("stopafter", time.Minute/4, "automatically stop the fetchbot after a given time")
 	stopAtURL     = flag.String("stopat", "", "automatically stop the fetchbot at a given URL")
-	memStats      = flag.Duration("memstats", time.Minute/4, "display memory statistics at a given interval")
+	memStats      = flag.Duration("memstats", time.Minute/8, "display memory statistics at a given interval")
 	userAgent     = flag.String("useragent", "Fetchbot (https://github.com/PuerkitoBio/fetchbot)", "set the user agent string for the crawler... to be polite")
 	crawlDelay    = flag.Duration("crawldelay", 5, "polite crawling delay for the crawler to wait for (second intervals)")
 	workerIdleTTL = flag.Duration("workerIdleTTL", 30, "time-to-live for a host url's goroutine (second intervals)")
@@ -78,6 +84,14 @@ var (
 func main() {
 	// parse the link json file to pass into the crawler
 	src := parseJSON()
+
+	// TODO abstract these variable to environment variables
+	// the name of the index we are ingesting to
+	indexName := "sw"
+	// the name of the type we are ingesting to
+	ingestionSet.DocType = "websites"
+	// default es host address
+	esHost := "http://127.0.0.1:9200"
 
 	// start the crawler
 	for _, s := range src.Links {
@@ -92,13 +106,17 @@ func main() {
 		}
 	}
 
-	fmt.Print("\n=> => Finished.\n\n\n\n")
-	fmt.Println(ingestionSet)
-	fmt.Println("You caught ", len(badLinks), " bad links.")
-	fmt.Println("Total Duplicates: ", len(dup))
-	for key := range dup {
-		fmt.Println("+++ Duplicate +++ ")
-		fmt.Println(key)
+	data := Index{}
+	data.Host = esHost
+	data.Index = indexName
+	data.Type = ingestionSet
+
+	_, err := store(data)
+	if err != nil {
+		panic(err)
+	} else {
+		fmt.Println("Successful ETL 🌎🌍🌏")
+		os.Exit(0)
 	}
 }
 
@@ -295,6 +313,7 @@ func scrapeHandler(wrapped fetchbot.Handler) fetchbot.Handler {
 					fmt.Println("Total Pages Scraped Successfully: ", len(ingestionSet.Documents))
 				}
 			} else {
+				fmt.Println("scrapeHandler bad links +1 ========== status code: ", res.StatusCode)
 				badLinks = append(badLinks, ctx.Cmd.URL().String())
 			}
 			// fmt.Printf("[%d] %s %s - %s\n", res.StatusCode, ctx.Cmd.Method(), ctx.Cmd.URL(), res.Header.Get("Content-Type"))
@@ -304,6 +323,7 @@ func scrapeHandler(wrapped fetchbot.Handler) fetchbot.Handler {
 }
 
 // enqueueLinks will make sure we are adding links to the queue to be processed for crawling/scraping
+// this will pull all the href attributes on pages, check for duplicates and add them to the queue
 func enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document) {
 	mu.Lock()
 	doc.Find("a[href]").Each(func(i int, s *goquery.Selection) {
@@ -314,6 +334,7 @@ func enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document) {
 			fmt.Printf("error: resolve URL %s - %s\n", val, err)
 			return
 		}
+		// catch the duplicate urls here before trying to add them to the queue
 		if !dup[u.String()] {
 			if _, err := ctx.Q.SendStringHead(u.String()); err != nil {
 				fmt.Printf("error: enqueue head %s - %s\n", u, err)
@@ -447,12 +468,11 @@ func rowsGenerator(in <-chan *html.Node) <-chan string {
 // scraper function will take a url and fire off pipelines to scrape titles,
 // paragraphs, divs and return a Document struct with valid title, content and a link
 func scraper(url string) Document {
-	var doc Document
-
 	contents := make([]string, 0)
 
+	var docTitle string
 	for title := range titleGenerator(rootGenerator(respGenerator(url))) {
-		doc.title = title
+		docTitle = title
 	}
 	for para := range paragraphGenerator(rootGenerator(respGenerator(url))) {
 		contents = append(contents, para)
@@ -465,8 +485,74 @@ func scraper(url string) Document {
 	// combine all the paragraphs from the page
 	content := strings.Join(contents, " ")
 	t := strings.TrimSpace(content)
-	doc.content = t
-	doc.link = url
+
+	doc := Document{title: docTitle, content: t, link: url}
 
 	return doc
+}
+
+// store function will take in an Index struct and Marshal it to JSON and store it into an elasticsearch
+// index and type based on the Index values
+func store(data Index) (bool, error) {
+	// host address defaults to 127.0.0.1:9200
+	client, err := elastic.NewClient(elastic.SetURL("http://127.0.0.1:9200/"))
+	if err != nil {
+		fmt.Println("New client err: \n", err)
+		return false, err
+	}
+
+	exists, err := client.IndexExists(data.Index).Do()
+	if err != nil {
+		fmt.Println("Index exists error")
+		return false, err
+	}
+	if !exists {
+		// Index does not exist yet.
+		createIndex, err := client.CreateIndex(data.Index).Do()
+		if err != nil {
+			fmt.Println("Create index error")
+			return false, err
+		}
+		if !createIndex.Acknowledged {
+			// Not acknowledged
+		}
+	}
+
+	for idx, val := range data.Type.Documents {
+		document, err := json.Marshal(val)
+		if err != nil {
+			fmt.Println("Json marshal error value: \n", val)
+			return false, err
+		}
+
+		fmt.Println("Marshaled document: \n", document)
+
+		id := strconv.Itoa(idx)
+
+		newDoc, err := client.Index().
+			Index(data.Index).
+			Type(data.Type.DocType).
+			Id(id).
+			BodyJson(document).
+			Refresh(true).
+			Do()
+		if err != nil {
+			fmt.Println("Ingestion error @ index ", idx)
+			fmt.Println("   Data index: ", data.Index)
+			fmt.Println("   Data type: ", data.Type.DocType)
+			return false, err
+		}
+
+		// just checking for new document
+		fmt.Printf("Indexed tweet %s to index %s, type %s\n", newDoc.Id, newDoc.Index, newDoc.Type)
+	}
+
+	// flush to make sure the index got written to
+	_, err = client.Flush().Index(data.Index).Do()
+	if err != nil {
+		fmt.Println("Flush error")
+		return false, err
+	}
+
+	return true, nil
 }

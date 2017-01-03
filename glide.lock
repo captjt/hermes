@@ -1,5 +1,5 @@
-hash: a12cc6b7753f36b955512567aa99bce43f8a1a64edca1aa1bc8c169fefa87cee
-updated: 2016-12-29T10:56:35.591599141-05:00
+hash: 0f4c062d4f8c3c1cf544a2139cfbc26b1e758a6dd26ab30380c6a3fa2aab5536
+updated: 2017-01-03T14:36:00.079203613-05:00
 imports:
 - name: github.com/andybalholm/cascadia
   version: 349dd0209470eabd9514242c688c403c0926d266
@@ -16,4 +16,11 @@ imports:
   subpackages:
   - html
   - html/atom
+- name: gopkg.in/olivere/elastic.v2
+  version: 4f4a971f9bff46f4a26e5bd3e889197c1659b112
+  subpackages:
+  - backoff
+  - uritemplates
+- name: gopkg.in/olivere/elastic.v3
+  version: 060365a7e27c56c938b234824ef7f9a3a7834b99
 testImports: []
