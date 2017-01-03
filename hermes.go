@@ -20,33 +20,35 @@ import (
 	"github.com/yhat/scrape"
 )
 
-// Sources struct to model a Type we want to ingest into the elasticsearch index
-// and the links we want to crawl/scrape information to store in our index/type
-type Sources struct {
-	Type  string
-	Links []string
-}
+type (
+	// Sources struct to model a Type we want to ingest into the elasticsearch index
+	// and the links we want to crawl/scrape information to store in our index/type
+	Sources struct {
+		Type  string
+		Links []string
+	}
 
-// Document stuct to model our single "Document" store we will ingestion into the
-// elasticsearch index/type
-type Document struct {
-	title   string
-	content string
-	link    string
-}
+	// Document stuct to model our single "Document" store we will ingestion into the
+	// elasticsearch index/type
+	Document struct {
+		title   string
+		content string
+		link    string
+	}
 
-// IndexType struct to model our ingestion set for multiple types and Documents
-// for our index
-type IndexType struct {
-	DocType   string
-	Documents []Document
-}
+	// IndexType struct to model our ingestion set for multiple types and Documents
+	// for our index
+	IndexType struct {
+		DocType   string
+		Documents []Document
+	}
 
-// Index struct to model each index ingestion set for our elasticsearch data
-type Index struct {
-	Index string
-	Type  IndexType
-}
+	// Index struct to model each index ingestion set for our elasticsearch data
+	Index struct {
+		Index string
+		Type  IndexType
+	}
+)
 
 var (
 	// Protect access to dup
@@ -84,6 +86,8 @@ func main() {
 	fmt.Println(ingestionSet)
 }
 
+// parseJSON will parse the local data.json file that is in the same directory as the executable.
+// The json file will be a "master" list of links we are going to crawl through.
 func parseJSON() Sources {
 	var s Sources
 	data, errRead := ioutil.ReadFile("./data.json")
@@ -99,6 +103,8 @@ func parseJSON() Sources {
 	return s
 }
 
+// crawl function that will take a url string and start firing out some crawling functions
+// it will return true/false based on the url root it starts with.
 func crawl(url string, u url.URL) bool {
 	flag.Parse()
 
@@ -286,7 +292,7 @@ func rootGenerator(in <-chan *http.Response) <-chan *html.Node {
 	return out
 }
 
-// paragraphGenerator functino will take in a channel with a pointer to an html.Node
+// titleGenerator functino will take in a channel with a pointer to an html.Node
 // type it will use scrape's ByTag API function and scrape all the Title tags from
 // the Node and return a channel with a type string
 func titleGenerator(in <-chan *html.Node) <-chan string {
