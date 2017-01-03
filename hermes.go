@@ -518,17 +518,8 @@ func store(data Index) (bool, error) {
 		}
 	}
 
+	// create a new document for every document scraped
 	for idx, val := range data.Type.Documents {
-		// document, err := json.Marshal(val)
-		// if err != nil {
-		// 	fmt.Println("Json marshal error value: \n", val)
-		// 	return false, err
-		// }
-
-		fmt.Println("New document: \n", val)
-
-		// id := strconv.Itoa(idx)
-
 		newDoc, err := client.Index().
 			Index(data.Index).
 			Type(data.Type.DocType).
