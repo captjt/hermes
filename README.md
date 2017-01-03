@@ -6,6 +6,8 @@ This is a combination of a couple awesome packages [scrape](https://github.com/y
 
 The premise behind all of this is that I wanted to have sort of an all in one way to crawl through sites and scrape it's content to store into an Elasticsearch index.
 
+This is a completely fun prototype.  I do plan on abstracting it out eventually and making it a reusable package but for now I am just making it something to kind of simulate a simple ETL of webpage content.
+
 The next few things I will need to do is ...
 - [x] add in some ingestion features for the Documents (scraped pages) to be uploaded to a configurable Elasticsearch instance
     * will start with Elasticsearch V. 2.0 - then -> support later versioning
