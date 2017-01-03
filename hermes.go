@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -54,15 +56,23 @@ var (
 	// Protect access to dup
 	mu sync.Mutex
 	// Duplicates table
-	dup          = map[string]bool{}
+	dup = map[string]bool{}
+
+	// ingestion data TODO make non global
 	ingestionSet IndexType
 
+	// bad links TODO make non global
+	badLinks []string
+
 	// Command-line flags
-	cancelAfter = flag.Duration("cancelafter", 0, "automatically cancel the fetchbot after a given time")
-	cancelAtURL = flag.String("cancelat", "", "automatically cancel the fetchbot at a given URL")
-	stopAfter   = flag.Duration("stopafter", 0, "automatically stop the fetchbot after a given time")
-	stopAtURL   = flag.String("stopat", "", "automatically stop the fetchbot at a given URL")
-	memStats    = flag.Duration("memstats", 0, "display memory statistics at a given interval")
+	cancelAfter   = flag.Duration("cancelafter", 0, "automatically cancel the fetchbot after a given time")
+	cancelAtURL   = flag.String("cancelat", "", "automatically cancel the fetchbot at a given URL")
+	stopAfter     = flag.Duration("stopafter", time.Minute/2, "automatically stop the fetchbot after a given time")
+	stopAtURL     = flag.String("stopat", "", "automatically stop the fetchbot at a given URL")
+	memStats      = flag.Duration("memstats", time.Minute/4, "display memory statistics at a given interval")
+	userAgent     = flag.String("useragent", "Fetchbot (https://github.com/PuerkitoBio/fetchbot)", "set the user agent string for the crawler... to be polite")
+	crawlDelay    = flag.Duration("crawldelay", 5, "polite crawling delay for the crawler to wait for (second intervals)")
+	workerIdleTTL = flag.Duration("workerIdleTTL", 30, "time-to-live for a host url's goroutine (second intervals)")
 )
 
 func main() {
@@ -82,8 +92,14 @@ func main() {
 		}
 	}
 
-	fmt.Print("\n\n\n\n=> Finished.\n")
+	fmt.Print("\n=> => Finished.\n\n\n\n")
 	fmt.Println(ingestionSet)
+	fmt.Println("You caught ", len(badLinks), " bad links.")
+	fmt.Println("Total Duplicates: ", len(dup))
+	for key := range dup {
+		fmt.Println("+++ Duplicate +++ ")
+		fmt.Println(key)
+	}
 }
 
 // parseJSON will parse the local data.json file that is in the same directory as the executable.
@@ -123,6 +139,8 @@ func crawl(url string, u url.URL) bool {
 			// Process the body to find the links
 			doc, err := goquery.NewDocumentFromResponse(res)
 			if err != nil {
+				// find the bad links in the documents
+				badLinks = append(badLinks, ctx.Cmd.URL().String())
 				fmt.Printf("[ERR] %s %s - %s\n", ctx.Cmd.Method(), ctx.Cmd.URL(), err)
 				return
 			}
@@ -149,6 +167,24 @@ func crawl(url string, u url.URL) bool {
 		h = stopHandler(stopURL, *cancelAtURL != "", scrapeHandler(mux))
 	}
 	f := fetchbot.New(h)
+
+	// set the fetchbots settings from flag parameters
+	f.UserAgent = *userAgent
+	f.CrawlDelay = *crawlDelay * time.Second
+	f.WorkerIdleTTL = *workerIdleTTL * time.Second
+
+	// First mem stat print must be right after creating the fetchbot
+	if *memStats > 0 {
+		// Print starting stats
+		printMemStats(nil)
+		// Run at regular intervals
+		runMemStats(f, *memStats)
+		// On exit, print ending stats after a GC
+		defer func() {
+			runtime.GC()
+			printMemStats(nil)
+		}()
+	}
 
 	// Start processing
 	q := f.Start()
@@ -179,6 +215,48 @@ func crawl(url string, u url.URL) bool {
 	q.Block()
 
 	return true
+}
+
+// runMemStats controls the debugging and memory allocation statistics
+func runMemStats(f *fetchbot.Fetcher, tick time.Duration) {
+	var mu sync.Mutex
+	var di *fetchbot.DebugInfo
+
+	// Start goroutine to collect fetchbot debug info
+	go func() {
+		for v := range f.Debug() {
+			mu.Lock()
+			di = v
+			mu.Unlock()
+		}
+	}()
+	// Start ticker goroutine to print mem stats at regular intervals
+	go func() {
+		c := time.Tick(tick)
+		for _ = range c {
+			mu.Lock()
+			printMemStats(di)
+			mu.Unlock()
+		}
+	}()
+}
+
+// printMemStats prints out the memory profile of the application at a given time's state
+func printMemStats(di *fetchbot.DebugInfo) {
+	var mem runtime.MemStats
+	runtime.ReadMemStats(&mem)
+	buf := bytes.NewBuffer(nil)
+	buf.WriteString(strings.Repeat("=", 72) + "\n")
+	buf.WriteString("Memory Profile:\n")
+	buf.WriteString(fmt.Sprintf("\tAlloc: %d Kb\n", mem.Alloc/1024))
+	buf.WriteString(fmt.Sprintf("\tTotalAlloc: %d Kb\n", mem.TotalAlloc/1024))
+	buf.WriteString(fmt.Sprintf("\tNumGC: %d\n", mem.NumGC))
+	buf.WriteString(fmt.Sprintf("\tGoroutines: %d\n", runtime.NumGoroutine()))
+	if di != nil {
+		buf.WriteString(fmt.Sprintf("\tNumHosts: %d\n", di.NumHosts))
+	}
+	buf.WriteString(strings.Repeat("=", 72))
+	fmt.Println(buf.String())
 }
 
 // stopHandler stops the fetcher if the stopurl is reached. Otherwise it dispatches
@@ -213,11 +291,11 @@ func scrapeHandler(wrapped fetchbot.Handler) fetchbot.Handler {
 				response := scraper(url)
 				// TODO: store/log the bad sites with null fields
 				if response.content != "" && response.title != "" && response.link != "" {
-					fmt.Println("New page was scraped!")
-					fmt.Println(response)
 					ingestionSet.Documents = append(ingestionSet.Documents, response)
 					fmt.Println("Total Pages Scraped Successfully: ", len(ingestionSet.Documents))
 				}
+			} else {
+				badLinks = append(badLinks, ctx.Cmd.URL().String())
 			}
 			// fmt.Printf("[%d] %s %s - %s\n", res.StatusCode, ctx.Cmd.Method(), ctx.Cmd.URL(), res.Header.Get("Content-Type"))
 		}
@@ -225,6 +303,7 @@ func scrapeHandler(wrapped fetchbot.Handler) fetchbot.Handler {
 	})
 }
 
+// enqueueLinks will make sure we are adding links to the queue to be processed for crawling/scraping
 func enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document) {
 	mu.Lock()
 	doc.Find("a[href]").Each(func(i int, s *goquery.Selection) {
@@ -385,7 +464,8 @@ func scraper(url string) Document {
 
 	// combine all the paragraphs from the page
 	content := strings.Join(contents, " ")
-	doc.content = content
+	t := strings.TrimSpace(content)
+	doc.content = t
 	doc.link = url
 
 	return doc
