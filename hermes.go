@@ -37,9 +37,9 @@ type (
 	// Document stuct to model our single "Document" store we will ingestion into the
 	// elasticsearch index/type
 	Document struct {
-		title   string
-		content string
-		link    string
+		Title   string `json:"title"`
+		Content string `json:"content"`
+		Link    string `json:"link"`
 	}
 
 	// IndexType struct to model our ingestion set for multiple types and Documents
@@ -73,12 +73,12 @@ var (
 	// Command-line flags
 	cancelAfter   = flag.Duration("cancelafter", 0, "automatically cancel the fetchbot after a given time")
 	cancelAtURL   = flag.String("cancelat", "", "automatically cancel the fetchbot at a given URL")
-	stopAfter     = flag.Duration("stopafter", time.Minute/4, "automatically stop the fetchbot after a given time")
+	stopAfter     = flag.Duration("stopafter", 0, "automatically stop the fetchbot after a given time")
 	stopAtURL     = flag.String("stopat", "", "automatically stop the fetchbot at a given URL")
-	memStats      = flag.Duration("memstats", time.Minute/8, "display memory statistics at a given interval")
+	memStats      = flag.Duration("memstats", 5*time.Minute, "display memory statistics at a given interval")
 	userAgent     = flag.String("useragent", "Fetchbot (https://github.com/PuerkitoBio/fetchbot)", "set the user agent string for the crawler... to be polite")
 	crawlDelay    = flag.Duration("crawldelay", 5, "polite crawling delay for the crawler to wait for (second intervals)")
-	workerIdleTTL = flag.Duration("workerIdleTTL", 30, "time-to-live for a host url's goroutine (second intervals)")
+	workerIdleTTL = flag.Duration("workerIdleTTL", 30*time.Second, "time-to-live for a host url's goroutine (second intervals)")
 )
 
 func main() {
@@ -87,7 +87,7 @@ func main() {
 
 	// TODO abstract these variable to environment variables
 	// the name of the index we are ingesting to
-	indexName := "sw"
+	indexName := "hermes"
 	// the name of the type we are ingesting to
 	ingestionSet.DocType = "websites"
 	// default es host address
@@ -308,7 +308,7 @@ func scrapeHandler(wrapped fetchbot.Handler) fetchbot.Handler {
 				url := ctx.Cmd.URL().String()
 				response := scraper(url)
 				// TODO: store/log the bad sites with null fields
-				if response.content != "" && response.title != "" && response.link != "" {
+				if response.Content != "" && response.Title != "" && response.Link != "" {
 					ingestionSet.Documents = append(ingestionSet.Documents, response)
 					fmt.Println("Total Pages Scraped Successfully: ", len(ingestionSet.Documents))
 				}
@@ -486,7 +486,7 @@ func scraper(url string) Document {
 	content := strings.Join(contents, " ")
 	t := strings.TrimSpace(content)
 
-	doc := Document{title: docTitle, content: t, link: url}
+	doc := Document{Title: docTitle, Content: t, Link: url}
 
 	return doc
 }
@@ -501,12 +501,12 @@ func store(data Index) (bool, error) {
 		return false, err
 	}
 
-	exists, err := client.IndexExists(data.Index).Do()
+	indexExists, err := client.IndexExists(data.Index).Do()
 	if err != nil {
 		fmt.Println("Index exists error")
 		return false, err
 	}
-	if !exists {
+	if !indexExists {
 		// Index does not exist yet.
 		createIndex, err := client.CreateIndex(data.Index).Do()
 		if err != nil {
@@ -519,21 +519,21 @@ func store(data Index) (bool, error) {
 	}
 
 	for idx, val := range data.Type.Documents {
-		document, err := json.Marshal(val)
-		if err != nil {
-			fmt.Println("Json marshal error value: \n", val)
-			return false, err
-		}
+		// document, err := json.Marshal(val)
+		// if err != nil {
+		// 	fmt.Println("Json marshal error value: \n", val)
+		// 	return false, err
+		// }
 
-		fmt.Println("Marshaled document: \n", document)
+		fmt.Println("New document: \n", val)
 
-		id := strconv.Itoa(idx)
+		// id := strconv.Itoa(idx)
 
 		newDoc, err := client.Index().
 			Index(data.Index).
 			Type(data.Type.DocType).
-			Id(id).
-			BodyJson(document).
+			Id(strconv.Itoa(idx) + "test").
+			BodyJson(val).
 			Refresh(true).
 			Do()
 		if err != nil {
