@@ -10,8 +10,7 @@ type (
 	// Sources struct to model a Type we want to ingest into the elasticsearch index
 	// and the links we want to crawl/scrape information to store in our index/type
 	Sources struct {
-		Type  string
-		Links []string
+		Links []string `json:"links"` // an array of all the URL strings we want to start our crawler at
 	}
 
 	// Settings struct to model the settings we want to run our hermes application with.
