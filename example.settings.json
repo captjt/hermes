@@ -3,6 +3,7 @@
     "esIndex": "hermes",
     "crawlDelay": 5,
     "cancelDuration": 0,
+    "cancelUrl": "",
     "stopDuration": 0,
     "stopUrl": "",
     "memStatsInterval": 30,

@@ -19,6 +19,7 @@ type (
 		ElasticsearchIndex string `json:"esIndex"`          // index name you are going to ingest data into
 		CrawlDelay         int    `json:"crawlDelay"`       // delay time for the crawler to abide to
 		CancelDuration     int    `json:"cancelDuration"`   // time duration for canceling the crawler (immediate cancel)
+		CancelAtURL        string `json:"cancelUrl"`        // specific URL to cancel the crawler at
 		StopDuration       int    `json:"stopDuration"`     // time duration for stopping the crawler (processes links on queue after duration time)
 		StopAtURL          string `json:"stopUrl"`          // specific URL to stop the crawler at for a specific "root"
 		MemStatsInterval   int    `json:"memStatsInterval"` // display memory statistics at a given interval
