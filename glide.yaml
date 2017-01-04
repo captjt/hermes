@@ -1,4 +1,8 @@
-package: hermes
+package: github.com/jtaylor32/hermes
+owners:
+- name: Jordan Taylor
+  email: jtaylor007.jt@gmail.com
+  homepage: https://www.jtaylor32.github.io
 import:
 - package: github.com/PuerkitoBio/fetchbot
 - package: github.com/yhat/scrape
