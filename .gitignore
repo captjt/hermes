@@ -4,10 +4,6 @@
 # VS Code Files
 .vs_code
 
-# json files and binary file
-data.json
-settings.json
-
 # Compiled Object files, Static and Dynamic libs (Shared Objects)
 *.o
 *.a
