@@ -1,0 +1,11 @@
+{
+    "esHost": "http://127.0.0.1:9200",
+    "esIndex": "hermes",
+    "crawlDelay": 5,
+    "cancelDuration": 0,
+    "stopDuration": 0,
+    "stopUrl": "",
+    "memStatsInterval": 30,
+    "userAgent": "(Hermes github.com/jtaylor32/hermes)",
+    "WorkerTimeout": 30
+}

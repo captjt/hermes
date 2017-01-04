@@ -4,5 +4,7 @@
 # VS Code Files
 .vs_code
 
+# json files and binary file
 data.json
+settings.json
 hermes
