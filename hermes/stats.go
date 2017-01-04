@@ -16,6 +16,9 @@ func runMemStats(f *fetchbot.Fetcher, tick time.Duration) {
 	var mu sync.Mutex
 	var di *fetchbot.DebugInfo
 
+	// convert time.Duration to seconds intervals
+	tick = tick * time.Second
+
 	// Start goroutine to collect fetchbot debug info
 	go func() {
 		for v := range f.Debug() {
