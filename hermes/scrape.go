@@ -1,4 +1,4 @@
-package main
+package hermes
 
 import (
 	"net/http"

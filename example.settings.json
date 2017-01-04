@@ -1,6 +1,7 @@
 {
     "esHost": "http://127.0.0.1:9200",
     "esIndex": "hermes",
+    "esType": "webpages",
     "crawlDelay": 5,
     "cancelDuration": 0,
     "cancelUrl": "",

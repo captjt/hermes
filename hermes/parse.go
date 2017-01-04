@@ -1,4 +1,4 @@
-package main
+package hermes
 
 import (
 	"encoding/json"
@@ -18,6 +18,7 @@ type (
 	Settings struct {
 		ElasticsearchHost  string        `json:"esHost"`           // host address for the elasticsearch instance
 		ElasticsearchIndex string        `json:"esIndex"`          // index name you are going to ingest data into
+		ElasticsearchType  string        `json:"esType"`           // type name you are going to ingest data into
 		CrawlDelay         time.Duration `json:"crawlDelay"`       // delay time for the crawler to abide to
 		CancelDuration     time.Duration `json:"cancelDuration"`   // time duration for canceling the crawler (immediate cancel)
 		CancelAtURL        string        `json:"cancelUrl"`        // specific URL to cancel the crawler at
