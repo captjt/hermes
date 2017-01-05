@@ -29,7 +29,7 @@ import (
 )
 
 func main() {
-    // create an array of Documents
+	// create an array of Documents
 	var ingestionSet []hermes.Document
 	// parse the data.json with type/links to pass into the crawler
 	src := hermes.ParseLinks()
@@ -50,12 +50,11 @@ func main() {
 		}
 	}
 
-	data := hermes.Index{}
-	data.Host = settings.ElasticsearchHost
-	data.Index = settings.ElasticsearchIndex
-	data.Documents = ingestionSet
-
-	_, err := hermes.Store(data, settings.ElasticsearchType)
+	_, err := hermes.Store(hermes.Index{
+		Host:      settings.ElasticsearchHost,
+		Index:     settings.ElasticsearchIndex,
+		Documents: ingestionSet,
+	}, settings.ElasticsearchType)
 	if err != nil {
 		panic(err)
 	} else {
