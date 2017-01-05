@@ -1,8 +1,10 @@
 package hermes
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
+	"time"
 
 	elastic "gopkg.in/olivere/elastic.v3"
 )
@@ -57,31 +59,28 @@ func Store(data Index, esType string) (bool, error) {
 		}
 	}
 
-	// create a new document for every document scraped
+	_, _, indexDay := time.Now().Date()
+
+	bulkSize := len(data.Documents)
+
+	bulk := client.Bulk().Index(data.Index).Type(esType)
+
+	// add the documents to the specified bulk's index and type
 	for idx, val := range data.Documents {
-		newDoc, err := client.Index().
-			Index(data.Index).
-			Type(esType).
-			Id(strconv.Itoa(idx) + "test").
-			BodyJson(val).
-			Refresh(true).
-			Do()
-		if err != nil {
-			fmt.Println("Ingestion error @ index ", idx)
-			fmt.Println("   Data index: ", data.Index)
-			fmt.Println("   Data type: ", esType)
-			return false, err
+		bulk.Add(elastic.NewBulkIndexRequest().Id(strconv.Itoa(idx) + "Day" + strconv.Itoa(indexDay)).Doc(val))
+
+		if bulk.NumberOfActions() >= bulkSize {
+			// Commit
+			res, err := bulk.Do()
+
+			if err != nil {
+				return false, err
+			}
+			if res.Errors {
+				// Look up the failed documents with res.Failed(), and e.g. recommit
+				return false, errors.New("bulk commit failed")
+			}
 		}
-
-		// just checking for new document
-		fmt.Printf("Indexed tweet %s to index %s, type %s\n", newDoc.Id, newDoc.Index, newDoc.Type)
-	}
-
-	// flush to make sure the index got written to
-	_, err = client.Flush().Index(data.Index).Do()
-	if err != nil {
-		fmt.Println("Flush error")
-		return false, err
 	}
 
 	return true, nil
