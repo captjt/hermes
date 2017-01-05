@@ -92,11 +92,11 @@ func Crawl(settings Settings, url string, u url.URL) ([]Document, bool) {
 
 	// if a stop or cancel is requested after some duration, launch the goroutine
 	// that will stop or cancel.
-	if settings.StopDuration > 0 || settings.CancelDuration > 0 {
-		after := settings.StopDuration
+	if settings.StopDuration*time.Minute > 0 || settings.CancelDuration*time.Minute > 0 {
+		after := settings.StopDuration * time.Minute
 		stopFunc := q.Close
 		if settings.CancelDuration != 0 {
-			after = settings.CancelDuration
+			after = settings.CancelDuration * time.Minute
 			stopFunc = q.Cancel
 		}
 
