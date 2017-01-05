@@ -31,12 +31,11 @@ func main() {
 		}
 	}
 
-	data := hermes.Index{}
-	data.Host = settings.ElasticsearchHost
-	data.Index = settings.ElasticsearchIndex
-	data.Documents = ingestionSet
-
-	_, err := hermes.Store(data, settings.ElasticsearchType)
+	_, err := hermes.Store(hermes.Index{
+		Host:      settings.ElasticsearchHost,
+		Index:     settings.ElasticsearchIndex,
+		Documents: ingestionSet,
+	}, settings.ElasticsearchType)
 	if err != nil {
 		panic(err)
 	} else {
