@@ -1,5 +1,5 @@
-hash: e1bbe8a317f8a14f9a55a0a86d9f781432394feead38e2701a8ecc4bb28d2896
-updated: 2017-01-04T14:59:23.119392468-05:00
+hash: 2f06bbd590e902bb1787ff6b22bc52f87300865d516ea5396abddaec48dabe94
+updated: 2017-01-16T17:26:21.81461194-05:00
 imports:
 - name: github.com/andybalholm/cascadia
   version: 349dd0209470eabd9514242c688c403c0926d266
@@ -9,8 +9,6 @@ imports:
   version: 152b1a2c8f5d0340f658bb656032a39b94e52958
 - name: github.com/temoto/robotstxt-go
   version: 99f6b48954d8cafb2f10790957aa747ca7aeb530
-- name: github.com/yhat/scrape
-  version: 24b7890b0945459dbf91743e4d2ac5d75a51fee2
 - name: golang.org/x/net
   version: cfae461cedfdcab6e261a26eb77db53695623303
   subpackages:
