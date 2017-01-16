@@ -99,31 +99,31 @@ func scrapeDocument(url string, doc *goquery.Document, tags []string) Document {
 	)
 	// scrape page <Title>
 	doc.Find("head").Each(func(i int, s *goquery.Selection) {
-		d.Title = s.Find("title").Text()
+		title := s.Find("title").Text()
+		d.Title = strings.TrimSpace(strings.Replace(title, " ", " ", -1))
 	})
 
 	// scrape page <Description>
 	doc.Find("meta").Each(func(i int, s *goquery.Selection) {
 		if name, _ := s.Attr("name"); strings.EqualFold(name, "description") {
 			description, _ := s.Attr("content")
-			d.Description = description
+			d.Description = strings.TrimSpace(strings.Replace(description, " ", " ", -1))
 		}
 	})
 
 	if len(tags) > 0 {
 		for _, tag := range tags {
 			text := returnText(doc, tag)
-			content += " " + text
+			content += " " + strings.TrimSpace(strings.Replace(text, " ", " ", -1))
 		}
 	} else {
 		text := returnText(doc, "default")
-		content += " " + text
+		content += " " + strings.TrimSpace(strings.Replace(text, " ", " ", -1))
 	}
 
 	d.Content = content
 	d.Link = url
 
-	fmt.Println(d.Content)
 	return d
 }
 
