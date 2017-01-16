@@ -1,39 +1,26 @@
 package hermes
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 	"sync"
 
-	"github.com/yhat/scrape"
+	"errors"
+
+	"github.com/PuerkitoBio/goquery"
 	"golang.org/x/net/html"
-	"golang.org/x/net/html/atom"
 )
 
 // Scrape function will take a url and fire off pipelines to scrape titles,
 // paragraphs, divs and return a Document struct with valid title, content and a link
-func Scrape(url string) Document {
-	contents := make([]string, 0)
-
-	var docTitle string
-	for title := range titleGenerator(rootGenerator(respGenerator(url))) {
-		docTitle = title
+func Scrape(url string, cs CustomSettings) (Document, error) {
+	document := Document{}
+	for document = range DocumentGenerator(rootGenerator(respGenerator(url)), cs) {
+		fmt.Printf("Scraped new document...\n   -- %s", document.Title)
+		return document, nil
 	}
-	for para := range paragraphGenerator(rootGenerator(respGenerator(url))) {
-		contents = append(contents, para)
-	}
-
-	for row := range rowsGenerator(rootGenerator(respGenerator(url))) {
-		contents = append(contents, row)
-	}
-
-	// combine all the paragraphs from the page
-	content := strings.Join(contents, " ")
-	t := strings.TrimSpace(content)
-
-	doc := Document{Title: docTitle, Content: t, Link: url}
-
-	return doc
+	return document, errors.New("Scraping error")
 }
 
 func respGenerator(url string) <-chan *http.Response {
@@ -82,19 +69,18 @@ func rootGenerator(in <-chan *http.Response) <-chan *html.Node {
 	return out
 }
 
-// titleGenerator functino will take in a channel with a pointer to an html.Node
+// DocumentGenerator functino will take in a channel with a pointer to an html.Node
 // type it will use scrape's ByTag API function and scrape all the Title tags from
 // the Node and return a channel with a type string
-func titleGenerator(in <-chan *html.Node) <-chan string {
+func DocumentGenerator(in <-chan *html.Node, cs CustomSettings) <-chan Document {
 	var wg sync.WaitGroup
-	out := make(chan string)
+	out := make(chan Document)
 	for root := range in {
 		wg.Add(1)
 		go func(root *html.Node) {
-			title, ok := scrape.Find(root, scrape.ByTag(atom.Title))
-			if ok {
-				out <- scrape.Text(title)
-			}
+			doc := goquery.NewDocumentFromNode(root)
+			out <- scrapeDocument(cs.RootLink, doc, cs.Tags)
+
 			wg.Done()
 		}(root)
 	}
@@ -105,52 +91,49 @@ func titleGenerator(in <-chan *html.Node) <-chan string {
 	return out
 }
 
-// paragraphGenerator functino will take in a channel with a pointer to an html.Node
-// type it will use scrape's ByTag API function and scrape all the P tags from
-// the Node and return a channel with a type string
-func paragraphGenerator(in <-chan *html.Node) <-chan string {
-	var wg sync.WaitGroup
-	out := make(chan string)
-	for root := range in {
-		wg.Add(1)
-		go func(root *html.Node) {
-			elements := scrape.FindAll(root, scrape.ByTag(atom.P))
-			for _, element := range elements {
-				if element != nil {
-					out <- scrape.Text(element)
-				}
-			}
-			wg.Done()
-		}(root)
+func scrapeDocument(url string, doc *goquery.Document, tags []string) Document {
+	var (
+		d       Document
+		content string
+	)
+	// scrape page <Title>
+	doc.Find("head").Each(func(i int, s *goquery.Selection) {
+		d.Title = s.Find("title").Text()
+	})
+
+	// scrape page <Description>
+	doc.Find("meta").Each(func(i int, s *goquery.Selection) {
+		if name, _ := s.Attr("name"); strings.EqualFold(name, "description") {
+			description, _ := s.Attr("content")
+			d.Description = description
+		}
+	})
+
+	if len(tags) > 0 {
+		for _, tag := range tags {
+			text := returnText(doc, tag)
+			content += " " + text
+		}
+	} else {
+		text := returnText(doc, "default")
+		content += " " + text
 	}
-	go func() {
-		wg.Wait()
-		close(out)
-	}()
-	return out
+
+	d.Content = content
+	d.Link = url
+
+	return d
 }
 
-// rowGenerator function will take in a channel with a pointer to an html.Node
-// type it will use scrape's ByTag API function and scrape all the Content tags from
-// the Node and return a channel with a type string
-func rowsGenerator(in <-chan *html.Node) <-chan string {
-	var wg sync.WaitGroup
-	out := make(chan string)
-	for root := range in {
-		wg.Add(1)
-		go func(root *html.Node) {
-			elements := scrape.FindAll(root, scrape.ByTag(atom.Content))
-			for _, element := range elements {
-				if element != nil {
-					out <- scrape.Text(element)
-				}
-			}
-			wg.Done()
-		}(root)
-	}
-	go func() {
-		wg.Wait()
-		close(out)
-	}()
-	return out
+func returnText(doc *goquery.Document, tag string) (text string) {
+	doc.Find("body").Each(func(i int, s *goquery.Selection) {
+		// default to pulling all the div and p tags else pull custom setting tags
+		if tag == "default" {
+			text += " " + s.Find("p").Text()
+			text += " " + s.Find("div").Text()
+		} else {
+			text += " " + s.Find(tag).Text()
+		}
+	})
+	return
 }
