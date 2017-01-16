@@ -48,7 +48,7 @@ func Crawl(settings Settings, linkSettings CustomSettings, u url.URL) ([]Documen
 				return
 			}
 			// Enqueue all links as HEAD requests
-			enqueueLinks(ctx, doc)
+			enqueueLinks(ctx, doc, u.Host)
 		}))
 
 	// Handle HEAD requests for html responses coming from the source host - we don't want
@@ -163,7 +163,7 @@ func scrapeHandler(wrapped fetchbot.Handler, linkSettings CustomSettings) fetchb
 
 // enqueueLinks will make sure we are adding links to the queue to be processed for crawling/scraping
 // this will pull all the href attributes on pages, check for duplicates and add them to the queue
-func enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document) {
+func enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document, host string) {
 	mu.Lock()
 	doc.Find("a[href]").Each(func(i int, s *goquery.Selection) {
 		val, _ := s.Attr("href")
@@ -173,12 +173,19 @@ func enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document) {
 			fmt.Printf("error: resolve URL %s - %s\n", val, err)
 			return
 		}
+
+		fmt.Printf("add %s -- domain %s", u, host)
+
 		// catch the duplicate urls here before trying to add them to the queue
 		if !dup[u.String()] {
-			if _, err := ctx.Q.SendStringHead(u.String()); err != nil {
-				fmt.Printf("error: enqueue head %s - %s\n", u, err)
+			if u.Host == host {
+				if _, err := ctx.Q.SendStringHead(u.String()); err != nil {
+					fmt.Printf("error: enqueue head %s - %s\n", u, err)
+				} else {
+					dup[u.String()] = true
+				}
 			} else {
-				dup[u.String()] = true
+				fmt.Printf("error: out of domain scope -- %s", host)
 			}
 		}
 	})
