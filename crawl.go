@@ -191,15 +191,14 @@ func enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document) {
 	mu.Unlock()
 }
 
-func scraper(ctx *fetchbot.Context, doc *goquery.Document, linkSettings CustomSettings) Document {
+func scraper(ctx *fetchbot.Context, doc *goquery.Document, linkSettings CustomSettings) {
+	mu.Lock()
 	u := ctx.Cmd.URL().String()
-
-	document := scrapeDocument(u, doc, linkSettings.Tags)
-
-	return document
+	scrapeDocument(u, doc, linkSettings.Tags)
+	mu.Unlock()
 }
 
-func scrapeDocument(url string, doc *goquery.Document, tags []string) Document {
+func scrapeDocument(url string, doc *goquery.Document, tags []string) {
 	var (
 		d       Document
 		content string
@@ -233,8 +232,7 @@ func scrapeDocument(url string, doc *goquery.Document, tags []string) Document {
 	d.Link = url
 
 	fmt.Println(d)
-
-	return d
+	ingestionSet = append(ingestionSet, d)
 }
 
 func returnText(doc *goquery.Document, tag string) (text string) {
