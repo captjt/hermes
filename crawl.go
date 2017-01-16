@@ -150,22 +150,17 @@ func scrapeHandler(wrapped fetchbot.Handler, linkSettings CustomSettings) fetchb
 		if err == nil {
 			fmt.Printf("[%d] %s %s - %s\n", res.StatusCode, ctx.Cmd.Method(), ctx.Cmd.URL(), res.Header.Get("Content-Type"))
 		} else {
-			if res.StatusCode == 200 {
-				doc, err := goquery.NewDocumentFromResponse(res)
-				if err != nil {
-					// find the bad links in the documents
-					badLinks = append(badLinks, ctx.Cmd.URL().String())
-					fmt.Printf("[ERR] %s %s - %s\n", ctx.Cmd.Method(), ctx.Cmd.URL(), err)
-					return
-				}
-
-				// fire scraper
-				content := scraper(ctx, doc, linkSettings)
-				ingestionSet = append(ingestionSet, content)
-			} else {
-				fmt.Println("scrapeHandler bad links +1 ========== status code: ", res.StatusCode)
+			doc, err := goquery.NewDocumentFromResponse(res)
+			if err != nil {
+				// find the bad links in the documents
 				badLinks = append(badLinks, ctx.Cmd.URL().String())
+				fmt.Printf("[ERR] %s %s - %s\n", ctx.Cmd.Method(), ctx.Cmd.URL(), err)
+				return
 			}
+
+			// fire scraper
+			content := scraper(ctx, doc, linkSettings)
+			ingestionSet = append(ingestionSet, content)
 		}
 		wrapped.Handle(ctx, res, err)
 	})
