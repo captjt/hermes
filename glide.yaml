@@ -5,5 +5,5 @@ owners:
   homepage: https://www.jtaylor32.github.io
 import:
 - package: github.com/PuerkitoBio/fetchbot
-- package: github.com/yhat/scrape
+- package: github.com/PuerkitoBio/goquery
 - package: gopkg.in/olivere/elastic.v3

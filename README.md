@@ -2,7 +2,7 @@
 
 ![Boom](./docs/static_files/power-to-the-masses.png)
 
-This is a combination of a couple awesome packages [scrape](https://github.com/yhat/scrape) + [fetchbot](https://github.com/PuerkitoBio/fetchbot) that will crawl a list of links and scrape the pages.
+This is a combination of a couple awesome packages [goquery](https://github.com/PuerkitoBio/goquery) + [fetchbot](https://github.com/PuerkitoBio/fetchbot) that will crawl a list of links and scrape the pages.
 
 The premise behind all of this is that I wanted to have sort of an all in one way to crawl through sites and scrape it's content to store into an Elasticsearch index.
 
@@ -39,12 +39,12 @@ func main() {
 
 	// start the crawler
 	for _, s := range src.Links {
-		u, err := url.Parse(s)
+		u, err := url.Parse(s.RootLink)
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		documents, done := hermes.Crawl(settings, u.String(), *u)
+		documents, done := hermes.Crawl(settings, s, *u)
 		if done {
 			ingestionSet = documents
 		}
@@ -62,4 +62,9 @@ func main() {
 		os.Exit(0)
 	}
 }
+
 ```
+
+### Acknowledgements
+
+Huge thanks to [PuerkitoBio](https://github.com/PuerkitoBio) and the work he has done on all his projects!
