@@ -148,19 +148,20 @@ func stopHandler(stopurl string, cancel bool, wrapped fetchbot.Handler) fetchbot
 func scrapeHandler(wrapped fetchbot.Handler, linkSettings CustomSettings) fetchbot.Handler {
 	return fetchbot.HandlerFunc(func(ctx *fetchbot.Context, res *http.Response, err error) {
 		if err == nil {
-			fmt.Printf("[%d] %s %s - %s\n", res.StatusCode, ctx.Cmd.Method(), ctx.Cmd.URL(), res.Header.Get("Content-Type"))
-		} else {
-			doc, err := goquery.NewDocumentFromResponse(res)
-			if err != nil {
-				// find the bad links in the documents
-				badLinks = append(badLinks, ctx.Cmd.URL().String())
-				fmt.Printf("[ERR] %s %s - %s\n", ctx.Cmd.Method(), ctx.Cmd.URL(), err)
-				return
-			}
+			if res.StatusCode == 200 {
+				doc, err := goquery.NewDocumentFromResponse(res)
+				if err != nil {
+					// find the bad links in the documents
+					badLinks = append(badLinks, ctx.Cmd.URL().String())
+					fmt.Printf("[ERR] %s %s - %s\n", ctx.Cmd.Method(), ctx.Cmd.URL(), err)
+					return
+				}
 
-			// fire scraper
-			content := scraper(ctx, doc, linkSettings)
-			ingestionSet = append(ingestionSet, content)
+				// fire scraper
+				content := scraper(ctx, doc, linkSettings)
+				ingestionSet = append(ingestionSet, content)
+			}
+			fmt.Printf("[%d] %s %s - %s\n", res.StatusCode, ctx.Cmd.Method(), ctx.Cmd.URL(), res.Header.Get("Content-Type"))
 		}
 		wrapped.Handle(ctx, res, err)
 	})
@@ -191,12 +192,10 @@ func enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document) {
 }
 
 func scraper(ctx *fetchbot.Context, doc *goquery.Document, linkSettings CustomSettings) Document {
-	mu.Lock()
 	u := ctx.Cmd.URL().String()
 
 	document := scrapeDocument(u, doc, linkSettings.Tags)
 
-	mu.Unlock()
 	return document
 }
 
