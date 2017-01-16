@@ -158,8 +158,7 @@ func scrapeHandler(wrapped fetchbot.Handler, linkSettings CustomSettings) fetchb
 				}
 
 				// fire scraper
-				content := scraper(ctx, doc, linkSettings)
-				ingestionSet = append(ingestionSet, content)
+				scraper(ctx, doc, linkSettings)
 			}
 			fmt.Printf("[%d] %s %s - %s\n", res.StatusCode, ctx.Cmd.Method(), ctx.Cmd.URL(), res.Header.Get("Content-Type"))
 		}
