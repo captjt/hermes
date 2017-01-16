@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -17,6 +18,8 @@ var (
 
 	dup = map[string]bool{} // Duplicates table
 
+	settingLinks = map[string]bool{} // Tracking link settings
+
 	ingestionSet []Document // ingestion data TODO make non global
 
 	badLinks []string // bad links TODO make non global
@@ -24,7 +27,7 @@ var (
 
 // Crawl function that will take a url string and start firing out some crawling functions
 // it will return true/false based on the url root it starts with.
-func Crawl(settings Settings, url string, u url.URL) ([]Document, bool) {
+func Crawl(settings Settings, linkSettings CustomSettings, u url.URL) ([]Document, bool) {
 	// Create the muxer
 	mux := fetchbot.NewMux()
 
@@ -59,13 +62,13 @@ func Crawl(settings Settings, url string, u url.URL) ([]Document, bool) {
 		}))
 
 	// Create the Fetcher, handle the logging first, then dispatch to the Muxer
-	h := scrapeHandler(mux)
+	h := scrapeHandler(mux, linkSettings)
 	if settings.StopAtURL != "" || settings.CancelAtURL != "" {
 		stopURL := settings.StopAtURL
 		if settings.CancelAtURL != "" {
 			stopURL = settings.CancelAtURL
 		}
-		h = stopHandler(stopURL, settings.CancelAtURL != "", scrapeHandler(mux))
+		h = stopHandler(stopURL, settings.CancelAtURL != "", scrapeHandler(mux, linkSettings))
 	}
 	f := fetchbot.New(h)
 
@@ -108,10 +111,10 @@ func Crawl(settings Settings, url string, u url.URL) ([]Document, bool) {
 	}
 
 	// Enqueue the seed, which is the first entry in the dup map
-	dup[url] = true
-	_, err := q.SendStringGet(url)
+	dup[linkSettings.RootLink] = true
+	_, err := q.SendStringGet(linkSettings.RootLink)
 	if err != nil {
-		fmt.Printf("[ERR] GET %s - %s\n", url, err)
+		fmt.Printf("[ERR] GET %s - %s\n", linkSettings.RootLink, err)
 	}
 	q.Block()
 
@@ -142,22 +145,27 @@ func stopHandler(stopurl string, cancel bool, wrapped fetchbot.Handler) fetchbot
 // scrapeHandler will fire a scraper function on the page if successful response,
 // append the scraped document stored for index ingestion
 // and dispatches the call to the wrapped Handler.
-func scrapeHandler(wrapped fetchbot.Handler) fetchbot.Handler {
+func scrapeHandler(wrapped fetchbot.Handler, linkSettings CustomSettings) fetchbot.Handler {
 	return fetchbot.HandlerFunc(func(ctx *fetchbot.Context, res *http.Response, err error) {
 		if err == nil {
+			fmt.Printf("[%d] %s %s - %s\n", res.StatusCode, ctx.Cmd.Method(), ctx.Cmd.URL(), res.Header.Get("Content-Type"))
+		} else {
 			if res.StatusCode == 200 {
-				url := ctx.Cmd.URL().String()
-				response := Scrape(url)
-				// TODO: store/log the bad sites with null fields
-				if response.Content != "" && response.Title != "" && response.Link != "" {
-					ingestionSet = append(ingestionSet, response)
-					fmt.Println("Total Pages Scraped Successfully: ", len(ingestionSet))
+				doc, err := goquery.NewDocumentFromResponse(res)
+				if err != nil {
+					// find the bad links in the documents
+					badLinks = append(badLinks, ctx.Cmd.URL().String())
+					fmt.Printf("[ERR] %s %s - %s\n", ctx.Cmd.Method(), ctx.Cmd.URL(), err)
+					return
 				}
+
+				// fire scraper
+				content := scraper(ctx, doc, linkSettings)
+				ingestionSet = append(ingestionSet, content)
 			} else {
 				fmt.Println("scrapeHandler bad links +1 ========== status code: ", res.StatusCode)
 				badLinks = append(badLinks, ctx.Cmd.URL().String())
 			}
-			// fmt.Printf("[%d] %s %s - %s\n", res.StatusCode, ctx.Cmd.Method(), ctx.Cmd.URL(), res.Header.Get("Content-Type"))
 		}
 		wrapped.Handle(ctx, res, err)
 	})
@@ -185,4 +193,65 @@ func enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document) {
 		}
 	})
 	mu.Unlock()
+}
+
+func scraper(ctx *fetchbot.Context, doc *goquery.Document, linkSettings CustomSettings) Document {
+	mu.Lock()
+	u := ctx.Cmd.URL().String()
+
+	document := scrapeDocument(u, doc, linkSettings.Tags)
+
+	mu.Unlock()
+	return document
+}
+
+func scrapeDocument(url string, doc *goquery.Document, tags []string) Document {
+	var (
+		d       Document
+		content string
+	)
+	// scrape page <Title>
+	doc.Find("head").Each(func(i int, s *goquery.Selection) {
+		d.Title = s.Find("title").Text()
+	})
+
+	// scrape page <Description>
+	doc.Find("meta").Each(func(i int, s *goquery.Selection) {
+		if name, _ := s.Attr("name"); strings.EqualFold(name, "description") {
+			description, _ := s.Attr("content")
+			d.Description = description
+		}
+	})
+
+	if len(tags) > 0 {
+		for _, tag := range tags {
+			text := returnText(doc, tag)
+			content += " " + text
+			fmt.Printf("Tag %s, returned %s\n", tag, text)
+		}
+	} else {
+		text := returnText(doc, "default")
+		content += " " + text
+		fmt.Printf("Default tag, returned %s\n", text)
+	}
+
+	d.Content = content
+	d.Link = url
+
+	fmt.Println(d)
+
+	return d
+}
+
+func returnText(doc *goquery.Document, tag string) (text string) {
+	doc.Find("body").Each(func(i int, s *goquery.Selection) {
+		// default to pulling all the div and p tags else pull custom setting tags
+		if tag == "default" {
+			text += " " + s.Find("p").Text()
+			text += " " + s.Find("div").Text()
+		} else {
+			text += " " + s.Find(tag).Text()
+		}
+	})
+	return
 }
