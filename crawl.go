@@ -17,6 +17,8 @@ var (
 
 	dup = map[string]bool{} // Duplicates table
 
+	settingLinks = map[string]bool{} // Tracking link settings
+
 	ingestionSet []Document // ingestion data TODO make non global
 
 	badLinks []string // bad links TODO make non global
@@ -24,7 +26,7 @@ var (
 
 // Crawl function that will take a url string and start firing out some crawling functions
 // it will return true/false based on the url root it starts with.
-func Crawl(settings Settings, url string, u url.URL) ([]Document, bool) {
+func Crawl(settings Settings, linkSettings CustomSettings, u url.URL) ([]Document, bool) {
 	// Create the muxer
 	mux := fetchbot.NewMux()
 
@@ -38,7 +40,7 @@ func Crawl(settings Settings, url string, u url.URL) ([]Document, bool) {
 	mux.Response().Method("GET").ContentType("text/html").Handler(fetchbot.HandlerFunc(
 		func(ctx *fetchbot.Context, res *http.Response, err error) {
 			// Process the body to find the links
-			doc, err := goquery.NewDocumentFromResponse(res)
+			doc, err := goquery.NewDocumentFromReader(res.Body)
 			if err != nil {
 				// find the bad links in the documents
 				badLinks = append(badLinks, ctx.Cmd.URL().String())
@@ -59,13 +61,13 @@ func Crawl(settings Settings, url string, u url.URL) ([]Document, bool) {
 		}))
 
 	// Create the Fetcher, handle the logging first, then dispatch to the Muxer
-	h := scrapeHandler(mux)
+	h := scrapeHandler(mux, linkSettings)
 	if settings.StopAtURL != "" || settings.CancelAtURL != "" {
 		stopURL := settings.StopAtURL
 		if settings.CancelAtURL != "" {
 			stopURL = settings.CancelAtURL
 		}
-		h = stopHandler(stopURL, settings.CancelAtURL != "", scrapeHandler(mux))
+		h = stopHandler(stopURL, settings.CancelAtURL != "", scrapeHandler(mux, linkSettings))
 	}
 	f := fetchbot.New(h)
 
@@ -108,10 +110,10 @@ func Crawl(settings Settings, url string, u url.URL) ([]Document, bool) {
 	}
 
 	// Enqueue the seed, which is the first entry in the dup map
-	dup[url] = true
-	_, err := q.SendStringGet(url)
+	dup[linkSettings.RootLink] = true
+	_, err := q.SendStringGet(linkSettings.RootLink)
 	if err != nil {
-		fmt.Printf("[ERR] GET %s - %s\n", url, err)
+		fmt.Printf("[ERR] GET %s - %s\n", linkSettings.RootLink, err)
 	}
 	q.Block()
 
@@ -142,22 +144,18 @@ func stopHandler(stopurl string, cancel bool, wrapped fetchbot.Handler) fetchbot
 // scrapeHandler will fire a scraper function on the page if successful response,
 // append the scraped document stored for index ingestion
 // and dispatches the call to the wrapped Handler.
-func scrapeHandler(wrapped fetchbot.Handler) fetchbot.Handler {
+func scrapeHandler(wrapped fetchbot.Handler, linkSettings CustomSettings) fetchbot.Handler {
 	return fetchbot.HandlerFunc(func(ctx *fetchbot.Context, res *http.Response, err error) {
 		if err == nil {
 			if res.StatusCode == 200 {
 				url := ctx.Cmd.URL().String()
-				response := Scrape(url)
-				// TODO: store/log the bad sites with null fields
-				if response.Content != "" && response.Title != "" && response.Link != "" {
-					ingestionSet = append(ingestionSet, response)
-					fmt.Println("Total Pages Scraped Successfully: ", len(ingestionSet))
+				responseDocument, err := Scrape(url, linkSettings)
+				if err != nil {
+					fmt.Printf("[ERR] IN SCRAPE URL: %s - %s", url, err)
 				}
-			} else {
-				fmt.Println("scrapeHandler bad links +1 ========== status code: ", res.StatusCode)
-				badLinks = append(badLinks, ctx.Cmd.URL().String())
+				ingestionSet = append(ingestionSet, responseDocument)
 			}
-			// fmt.Printf("[%d] %s %s - %s\n", res.StatusCode, ctx.Cmd.Method(), ctx.Cmd.URL(), res.Header.Get("Content-Type"))
+			fmt.Printf("[%d] %s %s - %s\n", res.StatusCode, ctx.Cmd.Method(), ctx.Cmd.URL(), res.Header.Get("Content-Type"))
 		}
 		wrapped.Handle(ctx, res, err)
 	})
@@ -167,6 +165,7 @@ func scrapeHandler(wrapped fetchbot.Handler) fetchbot.Handler {
 // this will pull all the href attributes on pages, check for duplicates and add them to the queue
 func enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document) {
 	mu.Lock()
+	fmt.Println("enqueue......")
 	doc.Find("a[href]").Each(func(i int, s *goquery.Selection) {
 		val, _ := s.Attr("href")
 		// Resolve address

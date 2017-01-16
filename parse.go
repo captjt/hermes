@@ -7,10 +7,16 @@ import (
 )
 
 type (
+	// CustomSettings struct to model custom settings we want to scrape from a specific page
+	CustomSettings struct {
+		RootLink string   `json:"link"`
+		Tags     []string `json:"tags"`
+	}
+
 	// Sources struct to model a Type we want to ingest into the elasticsearch index
 	// and the links we want to crawl/scrape information to store in our index/type
 	Sources struct {
-		Links []string `json:"links"` // an array of all the URL strings we want to start our crawler at
+		Links []CustomSettings `json:"links"` // an array of all the URL strings we want to start our crawler at
 	}
 
 	// Settings struct to model the settings we want to run our hermes application with.

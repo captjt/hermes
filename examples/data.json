@@ -1,6 +1,19 @@
 {
     "links": [
-        "https://www.hackernews.com",
-        "https://www.reddit.com"
+        {
+            "link": "https://www.hackernews.com",
+            "tags": [
+                "li",
+                "p"
+            ]
+        },
+        {
+            "link": "https://www.reddit.com",
+            "tags": [
+                "p",
+                "ul",
+                "h1"
+            ]
+        }
     ]
 }

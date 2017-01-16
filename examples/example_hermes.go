@@ -20,12 +20,12 @@ func main() {
 
 	// start the crawler
 	for _, s := range src.Links {
-		u, err := url.Parse(s)
+		u, err := url.Parse(s.RootLink)
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		documents, done := hermes.Crawl(settings, u.String(), *u)
+		documents, done := hermes.Crawl(settings, s, *u)
 		if done {
 			ingestionSet = documents
 		}
