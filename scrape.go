@@ -1,7 +1,6 @@
 package hermes
 
 import (
-	"fmt"
 	"net/http"
 	"strings"
 	"sync"
@@ -17,7 +16,6 @@ import (
 func Scrape(url string, cs CustomSettings) (Document, error) {
 	document := Document{}
 	for document = range DocumentGenerator(rootGenerator(respGenerator(url)), cs) {
-		fmt.Printf("Scraped new document...\n   -- %s", document.Title)
 		return document, nil
 	}
 	return document, errors.New("Scraping error")

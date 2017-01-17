@@ -8,6 +8,8 @@ import (
 	"sync"
 	"time"
 
+	"strings"
+
 	"github.com/PuerkitoBio/fetchbot"
 	"github.com/PuerkitoBio/goquery"
 )
@@ -151,7 +153,7 @@ func scrapeHandler(wrapped fetchbot.Handler, linkSettings CustomSettings) fetchb
 				url := ctx.Cmd.URL().String()
 				responseDocument, err := Scrape(url, linkSettings)
 				if err != nil {
-					fmt.Printf("[ERR] IN SCRAPE URL: %s - %s", url, err)
+					fmt.Printf("[ERR] SCRAPE URL: %s - %s", url, err)
 				}
 				ingestionSet = append(ingestionSet, responseDocument)
 			}
@@ -173,19 +175,16 @@ func enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document, host string) {
 			fmt.Printf("error: resolve URL %s - %s\n", val, err)
 			return
 		}
-
-		fmt.Printf("add %s -- domain %s", u, host)
-
 		// catch the duplicate urls here before trying to add them to the queue
 		if !dup[u.String()] {
-			if u.Host == host {
+			if u.Host == host || strings.Contains(u.Host, host) || strings.Contains(host, u.Host) {
 				if _, err := ctx.Q.SendStringHead(u.String()); err != nil {
 					fmt.Printf("error: enqueue head %s - %s\n", u, err)
 				} else {
 					dup[u.String()] = true
 				}
 			} else {
-				fmt.Printf("error: out of domain scope -- %s", host)
+				fmt.Printf("error: out of domain scope -- %s != %s\n", u.Host, host)
 			}
 		}
 	})
