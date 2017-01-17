@@ -15,7 +15,7 @@ import (
 // paragraphs, divs and return a Document struct with valid title, content and a link
 func Scrape(url string, cs CustomSettings) (Document, error) {
 	document := Document{}
-	for document = range DocumentGenerator(rootGenerator(respGenerator(url)), cs) {
+	for document = range documentGenerator(rootGenerator(respGenerator(url)), cs) {
 		return document, nil
 	}
 	return document, errors.New("Scraping error")
@@ -26,7 +26,6 @@ func respGenerator(url string) <-chan *http.Response {
 	var wg sync.WaitGroup
 	out := make(chan *http.Response)
 	wg.Add(1)
-
 	go func(url string) {
 		req, err := http.NewRequest("GET", url, nil)
 		if err != nil {
@@ -39,7 +38,6 @@ func respGenerator(url string) <-chan *http.Response {
 		out <- resp
 		wg.Done()
 	}(url)
-
 	go func() {
 		wg.Wait()
 		close(out)
@@ -69,9 +67,9 @@ func rootGenerator(in <-chan *http.Response) <-chan *html.Node {
 	return out
 }
 
-// DocumentGenerator function will take in a channel with a pointer to an html.Node
+// documentGenerator function will take in a channel with a pointer to an html.Node
 // type and customized settings and it will fire off scraping mechanisms to return a Document
-func DocumentGenerator(in <-chan *html.Node, cs CustomSettings) <-chan Document {
+func documentGenerator(in <-chan *html.Node, cs CustomSettings) <-chan Document {
 	var wg sync.WaitGroup
 	out := make(chan Document)
 	for root := range in {
