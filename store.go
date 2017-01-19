@@ -37,7 +37,7 @@ type (
 // index and type based on the Index values
 func Store(data Index, esType string) (bool, error) {
 	// host address defaults to 127.0.0.1:9200
-	client, err := elastic.NewClient(elastic.SetURL("http://127.0.0.1:9200/"))
+	client, err := elastic.NewClient(elastic.SetURL(data.Host))
 	if err != nil {
 		fmt.Println("New client err: \n", err)
 		return false, err
