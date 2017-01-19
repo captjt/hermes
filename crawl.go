@@ -29,6 +29,11 @@ var (
 // Crawl function that will take a url string and start firing out some crawling functions
 // it will return true/false based on the url root it starts with.
 func Crawl(settings Settings, linkSettings CustomSettings, u url.URL) ([]Document, bool) {
+	if linkSettings.TopLevelDomain == true && linkSettings.Subdomain == true {
+		fmt.Print("You cannot have both subdomain and top-level domain settings equal true")
+		return ingestionSet, false
+	}
+
 	// Create the muxer
 	mux := fetchbot.NewMux()
 
@@ -50,7 +55,7 @@ func Crawl(settings Settings, linkSettings CustomSettings, u url.URL) ([]Documen
 				return
 			}
 			// Enqueue all links as HEAD requests
-			enqueueLinks(ctx, doc, u.Host)
+			enqueueLinks(ctx, doc, u.Host, linkSettings)
 		}))
 
 	// Handle HEAD requests for html responses coming from the source host - we don't want
@@ -165,7 +170,7 @@ func scrapeHandler(wrapped fetchbot.Handler, linkSettings CustomSettings) fetchb
 
 // enqueueLinks will make sure we are adding links to the queue to be processed for crawling/scraping
 // this will pull all the href attributes on pages, check for duplicates and add them to the queue
-func enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document, host string) {
+func enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document, host string, settings CustomSettings) {
 	mu.Lock()
 	doc.Find("a[href]").Each(func(i int, s *goquery.Selection) {
 		val, _ := s.Attr("href")
@@ -175,18 +180,55 @@ func enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document, host string) {
 			fmt.Printf("error: resolve URL %s - %s\n", val, err)
 			return
 		}
+
 		// catch the duplicate urls here before trying to add them to the queue
 		if !dup[u.String()] {
-			if u.Host == host || strings.Contains(u.Host, host) || strings.Contains(host, u.Host) {
-				if _, err := ctx.Q.SendStringHead(u.String()); err != nil {
-					fmt.Printf("error: enqueue head %s - %s\n", u, err)
-				} else {
-					dup[u.String()] = true
+
+			// tld check
+			if settings.TopLevelDomain == true {
+				rootTLD := parseURL(host)
+				current := parseURL(u.Host)
+
+				if rootTLD == current {
+					err := addLink(ctx, u)
+					if err != nil {
+						fmt.Printf("error: enqueue head %s - %s\n", u, err)
+						return
+					}
 				}
-			} else {
-				fmt.Printf("error: out of domain scope -- %s != %s\n", u.Host, host)
+			}
+
+			// subdomain check
+			if settings.Subdomain == true {
+				if u.Host == host || strings.Contains(u.Host, host) || strings.Contains(host, u.Host) {
+					err := addLink(ctx, u)
+					if err != nil {
+						fmt.Printf("error: enqueue head %s - %s\n", u, err)
+						return
+					}
+				} else {
+					fmt.Printf("error: out of domain scope -- %s != %s\n", u.Host, host)
+					return
+				}
 			}
 		}
 	})
 	mu.Unlock()
+}
+
+// addLink will add a url to fetchbot's queue and to the global hashmap to audit for duplicates
+func addLink(ctx *fetchbot.Context, u *url.URL) error {
+	if _, err := ctx.Q.SendStringHead(u.String()); err != nil {
+		return err
+	}
+	dup[u.String()] = true
+	return nil
+}
+
+// parseURL will parse a url type and return the top-level domain (.com, .edu, .gov, etc.)
+func parseURL(u string) (tld string) {
+	s := strings.Split(u, ".")
+	last := len(s) - 1
+	tld = s[last]
+	return
 }

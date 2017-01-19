@@ -9,8 +9,10 @@ import (
 type (
 	// CustomSettings struct to model custom settings we want to scrape from a specific page
 	CustomSettings struct {
-		RootLink string   `json:"link"`
-		Tags     []string `json:"tags"`
+		RootLink       string   `json:"link"`
+		Tags           []string `json:"tags"`
+		Subdomain      bool     `json:"subdomain"`
+		TopLevelDomain bool     `json:"top_level_domain"`
 	}
 
 	// Sources struct to model a Type we want to ingest into the elasticsearch index

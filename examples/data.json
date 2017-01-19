@@ -5,7 +5,9 @@
             "tags": [
                 "li",
                 "p"
-            ]
+            ],
+            "subdomain": false,
+            "top_level_domain": true
         },
         {
             "link": "https://www.reddit.com",
@@ -13,7 +15,9 @@
                 "p",
                 "ul",
                 "h1"
-            ]
+            ],
+            "subdomain": false,
+            "top_level_domain": true
         }
     ]
 }
