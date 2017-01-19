@@ -195,6 +195,8 @@ func enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document, host string, set
 					fmt.Printf("error: out of domain scope -- %s != %s\n", u.Host, host)
 					return
 				}
+
+				return
 			}
 
 			// tld check
@@ -209,6 +211,8 @@ func enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document, host string, set
 						return
 					}
 				}
+
+				return
 			}
 
 			// subdomain check
@@ -227,9 +231,9 @@ func enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document, host string, set
 					return
 				}
 			}
-		}
 
-		return
+			return
+		}
 	})
 	mu.Unlock()
 }
