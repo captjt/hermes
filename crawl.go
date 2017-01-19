@@ -173,7 +173,7 @@ func enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document, host string, set
 		// Resolve address
 		u, err := ctx.Cmd.URL().Parse(val)
 		if err != nil {
-			fmt.Printf("error: resolve URL %s - %s\n", val, err)
+			fmt.Printf("error: resolve URL %s - %s\n", u, err)
 			return
 		}
 

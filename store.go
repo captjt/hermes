@@ -17,6 +17,7 @@ type (
 		Description string `json:"description"`
 		Content     string `json:"content"`
 		Link        string `json:"link"`
+		Tag         string `json:"tag"`
 	}
 
 	// IngestionDocument struct to model our ingestion set for multiple types and Documents

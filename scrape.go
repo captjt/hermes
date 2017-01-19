@@ -1,7 +1,9 @@
 package hermes
 
 import (
+	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 
@@ -13,9 +15,9 @@ import (
 
 // Scrape function will take a url and fire off pipelines to scrape titles,
 // paragraphs, divs and return a Document struct with valid title, content and a link
-func Scrape(url string, cs CustomSettings) (Document, error) {
+func Scrape(u string, cs CustomSettings) (Document, error) {
 	document := Document{}
-	for document = range documentGenerator(rootGenerator(respGenerator(url)), cs) {
+	for document = range documentGenerator(rootGenerator(respGenerator(u)), cs) {
 		return document, nil
 	}
 	return document, errors.New("Scraping error")
@@ -88,7 +90,7 @@ func documentGenerator(in <-chan *html.Node, cs CustomSettings) <-chan Document 
 }
 
 // function to scrape a goquery document and return a structured Document back
-func scrapeDocument(url string, doc *goquery.Document, tags []string) Document {
+func scrapeDocument(u string, doc *goquery.Document, tags []string) Document {
 	var (
 		d       Document
 		content string
@@ -117,8 +119,15 @@ func scrapeDocument(url string, doc *goquery.Document, tags []string) Document {
 		content += " " + strings.TrimSpace(strings.Replace(text, " ", " ", -1))
 	}
 
+	val, err := url.Parse(u)
+	if err != nil {
+		fmt.Printf("error: resolve URL %s - %s\n", val, err)
+	}
+
+	d.Tag = generateTag(val.Host)
+
 	d.Content = content
-	d.Link = url
+	d.Link = u
 
 	return d
 }
@@ -134,5 +143,17 @@ func returnText(doc *goquery.Document, tag string) (text string) {
 			text += " " + s.Find(tag).Text()
 		}
 	})
+	return
+}
+
+// generate a tag for a link/document based on the first url string
+// (>>sub<< in sub.domain.com or >>domain<< in domain.com)
+func generateTag(u string) (tag string) {
+	s := strings.Split(u, ".")
+	if s[0] == "www" && len(s) > 0 {
+		tag = s[1]
+	} else {
+		tag = s[0]
+	}
 	return
 }
