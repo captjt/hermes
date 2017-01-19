@@ -23,17 +23,18 @@ type (
 
 	// Settings struct to model the settings we want to run our hermes application with.
 	Settings struct {
-		ElasticsearchHost  string        `json:"esHost"`           // host address for the elasticsearch instance
-		ElasticsearchIndex string        `json:"esIndex"`          // index name you are going to ingest data into
-		ElasticsearchType  string        `json:"esType"`           // type name you are going to ingest data into
-		CrawlDelay         time.Duration `json:"crawlDelay"`       // delay time for the crawler to abide to
-		CancelDuration     time.Duration `json:"cancelDuration"`   // time duration for canceling the crawler (immediate cancel)
-		CancelAtURL        string        `json:"cancelUrl"`        // specific URL to cancel the crawler at
-		StopDuration       time.Duration `json:"stopDuration"`     // time duration for stopping the crawler (processes links on queue after duration time)
-		StopAtURL          string        `json:"stopUrl"`          // specific URL to stop the crawler at for a specific "root"
-		MemStatsInterval   time.Duration `json:"memStatsInterval"` // display memory statistics at a given interval
-		UserAgent          string        `json:"userAgent"`        // set the user agent string for the crawler... to be polite and identify yourself
-		WorkerIdleTTL      time.Duration `json:"workerTimeout"`    // time-to-live for a host URL's goroutine
+		ElasticsearchHost  string        `json:"es_host"`            // host address for the elasticsearch instance
+		ElasticsearchIndex string        `json:"es_index"`           // index name you are going to ingest data into
+		ElasticsearchType  string        `json:"es_type"`            // type name you are going to ingest data into
+		CrawlDelay         time.Duration `json:"crawl_delay"`        // delay time for the crawler to abide to
+		CancelDuration     time.Duration `json:"cancel_duration"`    // time duration for canceling the crawler (immediate cancel)
+		CancelAtURL        string        `json:"cancel_url"`         // specific URL to cancel the crawler at
+		StopDuration       time.Duration `json:"stop_duration"`      // time duration for stopping the crawler (processes links on queue after duration time)
+		StopAtURL          string        `json:"stop_url"`           // specific URL to stop the crawler at for a specific "root"
+		MemStatsInterval   time.Duration `json:"mem_stats_interval"` // display memory statistics at a given interval
+		UserAgent          string        `json:"user_agent"`         // set the user agent string for the crawler... to be polite and identify yourself
+		WorkerIdleTTL      time.Duration `json:"worker_timeout"`     // time-to-live for a host URL's goroutine
+		AutoClose          bool          `json:"autoclose"`          // sets the application to terminate if the WorkerIdleTTL time is passed (must be true)
 	}
 )
 

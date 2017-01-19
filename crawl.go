@@ -76,7 +76,8 @@ func Crawl(settings Settings, linkSettings CustomSettings, u url.URL) ([]Documen
 	// set the fetchbots settings from flag parameters
 	f.UserAgent = settings.UserAgent
 	f.CrawlDelay = settings.CrawlDelay * time.Second
-	f.WorkerIdleTTL = 5 * time.Second
+	f.WorkerIdleTTL = settings.WorkerIdleTTL * time.Second
+	f.AutoClose = settings.AutoClose
 
 	// First mem stat print must be right after creating the fetchbot
 	if settings.MemStatsInterval > 0 {
