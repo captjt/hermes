@@ -1,12 +1,13 @@
 package hermes
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strconv"
 	"time"
 
-	elastic "gopkg.in/olivere/elastic.v3"
+	elastic "gopkg.in/olivere/elastic.v5"
 )
 
 type (
@@ -44,14 +45,14 @@ func Store(data Index, esType string) (bool, error) {
 		return false, err
 	}
 
-	indexExists, err := client.IndexExists(data.Index).Do()
+	exists, err := client.IndexExists(data.Index).Do(context.Background())
 	if err != nil {
 		fmt.Println("Index exists error")
 		return false, err
 	}
-	if !indexExists {
+	if !exists {
 		// Index does not exist yet.
-		createIndex, err := client.CreateIndex(data.Index).Do()
+		createIndex, err := client.CreateIndex(data.Index).Do(context.Background())
 		if err != nil {
 			fmt.Println("Create index error")
 			return false, err
@@ -73,7 +74,7 @@ func Store(data Index, esType string) (bool, error) {
 
 		if bulk.NumberOfActions() >= bulkSize {
 			// Commit
-			res, err := bulk.Do()
+			res, err := bulk.Do(context.Background())
 
 			if err != nil {
 				return false, err
