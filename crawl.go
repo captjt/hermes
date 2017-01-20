@@ -152,7 +152,7 @@ func scrapeHandler(wrapped fetchbot.Handler, linkSettings CustomSettings) fetchb
 		if err == nil {
 			if res.StatusCode == 200 {
 				url := ctx.Cmd.URL().String()
-				responseDocument, err := Scrape(url, linkSettings)
+				responseDocument, err := Scrape(ctx, linkSettings)
 				if err != nil {
 					fmt.Printf("[ERR] SCRAPE URL: %s - %s", url, err)
 				}
@@ -168,14 +168,29 @@ func scrapeHandler(wrapped fetchbot.Handler, linkSettings CustomSettings) fetchb
 // this will pull all the href attributes on pages, check for duplicates and add them to the queue
 func enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document, host string, settings CustomSettings) {
 	mu.Lock()
+
+	fmt.Printf("incoming url: -- %s\n   ", ctx.Cmd.URL().String())
+	fmt.Println("Duplicate object")
+	for key, value := range dup {
+		fmt.Printf("Link %s - %t \n", key, value)
+	}
+
 	doc.Find("a[href]").Each(func(i int, s *goquery.Selection) {
-		val, _ := s.Attr("href")
+		val, exists := s.Attr("href")
+		if exists == false {
+			fmt.Print("error: address within the document\n")
+			return
+		}
+
 		// Resolve address
 		u, err := ctx.Cmd.URL().Parse(val)
 		if err != nil {
 			fmt.Printf("error: resolve URL %s - %s\n", u, err)
 			return
 		}
+
+		// remove the 'www' from the URL so that we have better duplicate detection
+		normalizeLink(u)
 
 		// catch the duplicate urls here before trying to add them to the queue
 		if !dup[u.String()] {
@@ -192,7 +207,7 @@ func enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document, host string, set
 						return
 					}
 				} else {
-					fmt.Printf("error: out of domain scope -- %s != %s\n", u.Host, host)
+					fmt.Printf("catch: out of domain scope -- %s != %s\n", u.Host, host)
 					return
 				}
 
@@ -227,7 +242,7 @@ func enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document, host string, set
 						return
 					}
 				} else {
-					fmt.Printf("error: out of domain scope -- %s != %s\n", u.Host, host)
+					fmt.Printf("catch: out of domain scope -- %s != %s\n", u.Host, host)
 					return
 				}
 			}
@@ -236,6 +251,16 @@ func enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document, host string, set
 		}
 	})
 	mu.Unlock()
+}
+
+// remove the www from the URL host
+func normalizeLink(u *url.URL) {
+	s := strings.Split(u.Host, ".")
+	if len(s) == 0 {
+		fmt.Printf("[ERR] URL doesn't have a TLD: %s\n", u.Host)
+	} else if s[0] == "www" {
+		u.Host = strings.Join(s[1:], ".")
+	}
 }
 
 // addLink will add a url to fetchbot's queue and to the global hashmap to audit for duplicates
@@ -250,6 +275,10 @@ func addLink(ctx *fetchbot.Context, u *url.URL) error {
 // getDomain will parse a url and return the domain with the tld on it (ie. example.com)
 func getDomain(u string) (root string) {
 	s := strings.Split(u, ".")
+	if len(s) == 0 {
+		root = u
+		return
+	}
 	last := len(s) - 1
 	runnerUp := last - 1
 	root = s[runnerUp] + "." + s[last]
@@ -259,6 +288,10 @@ func getDomain(u string) (root string) {
 // getTLD will parse a url type and return the top-level domain (.com, .edu, .gov, etc.)
 func getTLD(u string) (tld string) {
 	s := strings.Split(u, ".")
+	if len(s) == 0 {
+		tld = u
+		return
+	}
 	last := len(s) - 1
 	tld = s[last]
 	return

@@ -1,23 +1,22 @@
 package hermes
 
 import (
-	"fmt"
 	"net/http"
-	"net/url"
 	"strings"
 	"sync"
 
 	"errors"
 
+	"github.com/PuerkitoBio/fetchbot"
 	"github.com/PuerkitoBio/goquery"
 	"golang.org/x/net/html"
 )
 
 // Scrape function will take a url and fire off pipelines to scrape titles,
 // paragraphs, divs and return a Document struct with valid title, content and a link
-func Scrape(u string, cs CustomSettings) (Document, error) {
+func Scrape(ctx *fetchbot.Context, cs CustomSettings) (Document, error) {
 	document := Document{}
-	for document = range documentGenerator(rootGenerator(respGenerator(u)), cs) {
+	for document = range documentGenerator(rootGenerator(respGenerator(ctx.Cmd.URL().String())), ctx, cs) {
 		return document, nil
 	}
 	return document, errors.New("Scraping error")
@@ -71,14 +70,14 @@ func rootGenerator(in <-chan *http.Response) <-chan *html.Node {
 
 // documentGenerator function will take in a channel with a pointer to an html.Node
 // type and customized settings and it will fire off scraping mechanisms to return a Document
-func documentGenerator(in <-chan *html.Node, cs CustomSettings) <-chan Document {
+func documentGenerator(in <-chan *html.Node, ctx *fetchbot.Context, cs CustomSettings) <-chan Document {
 	var wg sync.WaitGroup
 	out := make(chan Document)
 	for root := range in {
 		wg.Add(1)
 		go func(root *html.Node) {
 			doc := goquery.NewDocumentFromNode(root)
-			out <- scrapeDocument(cs.RootLink, doc, cs.Tags)
+			out <- scrapeDocument(ctx, doc, cs.Tags)
 			wg.Done()
 		}(root)
 	}
@@ -90,7 +89,7 @@ func documentGenerator(in <-chan *html.Node, cs CustomSettings) <-chan Document 
 }
 
 // function to scrape a goquery document and return a structured Document back
-func scrapeDocument(u string, doc *goquery.Document, tags []string) Document {
+func scrapeDocument(ctx *fetchbot.Context, doc *goquery.Document, tags []string) Document {
 	var (
 		d       Document
 		content string
@@ -119,15 +118,10 @@ func scrapeDocument(u string, doc *goquery.Document, tags []string) Document {
 		content += " " + strings.TrimSpace(strings.Replace(text, " ", " ", -1))
 	}
 
-	val, err := url.Parse(u)
-	if err != nil {
-		fmt.Printf("error: resolve URL %s - %s\n", val, err)
-	}
-
-	d.Tag = generateTag(val.Host)
+	d.Tag = generateTag(ctx.Cmd.URL().Host)
 
 	d.Content = content
-	d.Link = u
+	d.Link = ctx.Cmd.URL().String()
 
 	return d
 }
