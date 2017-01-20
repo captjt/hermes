@@ -119,7 +119,7 @@ func scrapeDocument(u string, doc *goquery.Document, tags []string) Document {
 		content += " " + strings.TrimSpace(strings.Replace(text, " ", " ", -1))
 	}
 
-	val, err := url.Parse(u)
+	val, err := url.Parse(doc.Url.String())
 	if err != nil {
 		fmt.Printf("error: resolve URL %s - %s\n", val, err)
 	}
@@ -127,7 +127,7 @@ func scrapeDocument(u string, doc *goquery.Document, tags []string) Document {
 	d.Tag = generateTag(val.Host)
 
 	d.Content = content
-	d.Link = u
+	d.Link = val.String()
 
 	return d
 }
