@@ -28,7 +28,7 @@ var (
 
 // Crawl function that will take a url string and start firing out some crawling functions
 // it will return true/false based on the url root it starts with.
-func Crawl(settings Settings, linkSettings CustomSettings, u url.URL) ([]Document, bool) {
+func Crawl(settings Settings, linkSettings CustomSettings, u *url.URL) ([]Document, bool) {
 	// Create the muxer
 	mux := fetchbot.NewMux()
 
@@ -45,12 +45,11 @@ func Crawl(settings Settings, linkSettings CustomSettings, u url.URL) ([]Documen
 			doc, err := goquery.NewDocumentFromReader(res.Body)
 			if err != nil {
 				// find the bad links in the documents
-				badLinks = append(badLinks, ctx.Cmd.URL().String())
 				fmt.Printf("[ERR] %s %s - %s\n", ctx.Cmd.Method(), ctx.Cmd.URL(), err)
 				return
 			}
 			// Enqueue all links as HEAD requests
-			enqueueLinks(ctx, doc, u.Host, linkSettings)
+			enqueueLinks(ctx, doc, u, linkSettings)
 		}))
 
 	// Handle HEAD requests for html responses coming from the source host - we don't want
@@ -168,9 +167,8 @@ func scrapeHandler(wrapped fetchbot.Handler, linkSettings CustomSettings) fetchb
 
 // enqueueLinks will make sure we are adding links to the queue to be processed for crawling/scraping
 // this will pull all the href attributes on pages, check for duplicates and add them to the queue
-func enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document, host string, settings CustomSettings) {
+func enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document, host *url.URL, settings CustomSettings) {
 	mu.Lock()
-
 	fmt.Printf("incoming url: -- %s\n   ", ctx.Cmd.URL().String())
 	fmt.Println("Duplicate object")
 	for key, value := range dup {
@@ -191,15 +189,27 @@ func enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document, host string, set
 			return
 		}
 
+		// check whether or not the link is an email link
+		emailCheck := false
+		func(s string, emailCheck *bool) {
+			if strings.Contains(s, "mailto:") {
+				*emailCheck = true
+			}
+		}(u.String(), &emailCheck)
+
+		if emailCheck == true {
+			fmt.Printf("[ERR] Email link - %s\n", u.String())
+			return
+		}
+
 		// remove the 'www' from the URL so that we have better duplicate detection
 		normalizeLink(u)
 
 		// catch the duplicate urls here before trying to add them to the queue
 		if !dup[u.String()] {
-
 			// tld & subdomain
 			if settings.TopLevelDomain == true && settings.Subdomain == true {
-				rootDomain := getDomain(host)
+				rootDomain := getDomain(host.Host)
 				current := getDomain(u.Host)
 
 				if rootDomain == current {
@@ -210,15 +220,12 @@ func enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document, host string, set
 					}
 				} else {
 					fmt.Printf("catch: out of domain scope -- %s != %s\n", u.Host, host)
-					return
 				}
-
-				return
 			}
 
 			// tld check
-			if settings.TopLevelDomain == true {
-				rootTLD := getTLD(host)
+			if settings.TopLevelDomain == true && settings.Subdomain == false {
+				rootTLD := getDomain(host.Host)
 				current := getTLD(u.Host)
 
 				if rootTLD == current {
@@ -228,13 +235,11 @@ func enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document, host string, set
 						return
 					}
 				}
-
-				return
 			}
 
 			// subdomain check
-			if settings.Subdomain == true {
-				rootDomain := getDomain(host)
+			if settings.Subdomain == true && settings.TopLevelDomain == false {
+				rootDomain := getDomain(host.Host)
 				current := getDomain(u.Host)
 
 				if rootDomain == current {
@@ -245,11 +250,8 @@ func enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document, host string, set
 					}
 				} else {
 					fmt.Printf("catch: out of domain scope -- %s != %s\n", u.Host, host)
-					return
 				}
 			}
-
-			return
 		}
 	})
 	mu.Unlock()

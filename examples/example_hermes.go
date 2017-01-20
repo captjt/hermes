@@ -25,7 +25,7 @@ func main() {
 			log.Fatal(parseErr)
 		}
 
-		documents, done := hermes.Crawl(settings, s, *u)
+		documents, done := hermes.Crawl(settings, s, u)
 		if done {
 			ingestionSet = documents
 		}
