@@ -17,7 +17,7 @@ import (
 // paragraphs, divs and return a Document struct with valid title, content and a link
 func Scrape(u string, cs CustomSettings) (Document, error) {
 	document := Document{}
-	for document = range documentGenerator(rootGenerator(respGenerator(u)), cs) {
+	for document = range documentGenerator(rootGenerator(respGenerator(u)), u, cs) {
 		return document, nil
 	}
 	return document, errors.New("Scraping error")
@@ -71,14 +71,14 @@ func rootGenerator(in <-chan *http.Response) <-chan *html.Node {
 
 // documentGenerator function will take in a channel with a pointer to an html.Node
 // type and customized settings and it will fire off scraping mechanisms to return a Document
-func documentGenerator(in <-chan *html.Node, cs CustomSettings) <-chan Document {
+func documentGenerator(in <-chan *html.Node, link string, cs CustomSettings) <-chan Document {
 	var wg sync.WaitGroup
 	out := make(chan Document)
 	for root := range in {
 		wg.Add(1)
 		go func(root *html.Node) {
 			doc := goquery.NewDocumentFromNode(root)
-			out <- scrapeDocument(cs.RootLink, doc, cs.Tags)
+			out <- scrapeDocument(link, doc, cs.Tags)
 			wg.Done()
 		}(root)
 	}
@@ -119,7 +119,7 @@ func scrapeDocument(u string, doc *goquery.Document, tags []string) Document {
 		content += " " + strings.TrimSpace(strings.Replace(text, " ", " ", -1))
 	}
 
-	val, err := url.Parse(doc.Url.String())
+	val, err := url.Parse(u)
 	if err != nil {
 		fmt.Printf("error: resolve URL %s - %s\n", val, err)
 	}
@@ -127,7 +127,7 @@ func scrapeDocument(u string, doc *goquery.Document, tags []string) Document {
 	d.Tag = generateTag(val.Host)
 
 	d.Content = content
-	d.Link = val.String()
+	d.Link = u
 
 	return d
 }
