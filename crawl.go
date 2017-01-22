@@ -169,11 +169,6 @@ func scrapeHandler(wrapped fetchbot.Handler, linkSettings CustomSettings) fetchb
 // this will pull all the href attributes on pages, check for duplicates and add them to the queue
 func enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document, host *url.URL, settings CustomSettings) {
 	mu.Lock()
-	fmt.Printf("incoming url: -- %s\n   ", ctx.Cmd.URL().String())
-	fmt.Println("Duplicate object")
-	for key, value := range dup {
-		fmt.Printf("Link %s - %t \n", key, value)
-	}
 
 	doc.Find("a[href]").Each(func(i int, s *goquery.Selection) {
 		val, exists := s.Attr("href")
