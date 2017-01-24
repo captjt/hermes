@@ -1,18 +1,20 @@
-# [Hermes](https://en.wikipedia.org/wiki/Hermes) 🏃💨
+<img src="https://github.com/jtaylor32/hermes/blob/master/docs/static_files/power-to-the-masses.png" alt="Boom Hermes" align="right" />
 
-![Boom](./docs/static_files/power-to-the-masses.png)
-
+Whats is [Hermes](https://en.wikipedia.org/wiki/Hermes)? 🏃💨
+====================
 This is a combination of a couple awesome packages [goquery](https://github.com/PuerkitoBio/goquery) + [fetchbot](https://github.com/PuerkitoBio/fetchbot) that will crawl a list of links and scrape the pages.
 
 The premise behind all of this is that I wanted to have sort of an all in one way to crawl through sites and scrape it's content to store into an Elasticsearch index.
 
 This is a completely fun prototype.  I do plan on abstracting it out eventually and making it a reusable package but for now I am just making it something to kind of simulate a simple ETL of webpage content.
 
-### Install
+Install
+====================
 
 `go get github.com/jtaylor32/hermes`
 
-### Examples
+Example
+====================
 
 **You will need to make sure you follow the example** `data.json` **and** `settings.json` **files**
 
@@ -65,6 +67,7 @@ func main() {
 
 ```
 
-### Acknowledgements
+Acknowledgments
+====================
 
 Huge thanks to [PuerkitoBio](https://github.com/PuerkitoBio) and the work he has done on all his projects!
