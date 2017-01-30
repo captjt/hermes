@@ -14,11 +14,12 @@ type (
 	// Document stuct to model our single "Document" store we will ingestion into the
 	// elasticsearch index/type
 	Document struct {
-		Title       string `json:"title"`
-		Description string `json:"description"`
-		Content     string `json:"content"`
-		Link        string `json:"link"`
-		Tag         string `json:"tag"`
+		Title       string    `json:"title"`
+		Description string    `json:"description"`
+		Content     string    `json:"content"`
+		Link        string    `json:"link"`
+		Tag         string    `json:"tag"`
+		Time        time.Time `json:"time"`
 	}
 
 	// IngestionDocument struct to model our ingestion set for multiple types and Documents

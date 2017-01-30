@@ -7,6 +7,8 @@ import (
 
 	"errors"
 
+	"time"
+
 	"github.com/PuerkitoBio/fetchbot"
 	"github.com/PuerkitoBio/goquery"
 	"golang.org/x/net/html"
@@ -122,6 +124,7 @@ func scrapeDocument(ctx *fetchbot.Context, doc *goquery.Document, tags []string)
 
 	d.Content = content
 	d.Link = ctx.Cmd.URL().String()
+	d.Time = time.Now()
 
 	return d
 }
