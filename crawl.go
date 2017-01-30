@@ -158,8 +158,6 @@ func scrapeHandler(wrapped fetchbot.Handler, linkSettings CustomSettings) fetchb
 				ingestionSet = append(ingestionSet, responseDocument)
 			}
 			fmt.Printf("[%d] %s %s - %s\n", res.StatusCode, ctx.Cmd.Method(), ctx.Cmd.URL(), res.Header.Get("Content-Type"))
-		} else {
-			fmt.Printf("ERR [%d] - %s -- %s\n", res.StatusCode, ctx.Cmd.URL(), err)
 		}
 		wrapped.Handle(ctx, res, err)
 	})
