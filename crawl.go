@@ -277,7 +277,7 @@ func getDomain(u string) (root string) {
 		return
 	}
 	last := len(s) - 1
-	runnerUp := last - 1
+	runnerUp := len(s) - 2
 	root = s[runnerUp] + "." + s[last]
 	return
 }
@@ -288,8 +288,10 @@ func getTLD(u string) (tld string) {
 	if len(s) == 0 {
 		tld = u
 		return
+	} else if len(s) > 0 {
+		last := len(s) - 1
+		tld = s[last]
 	}
-	last := len(s) - 1
-	tld = s[last]
+	tld = u
 	return
 }
