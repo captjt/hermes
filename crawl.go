@@ -277,8 +277,13 @@ func getDomain(u string) (root string) {
 		return
 	}
 	last := len(s) - 1
-	runnerUp := len(s) - 2
-	root = s[runnerUp] + "." + s[last]
+	if last == 1 {
+		root = s[0] + "." + s[last]
+		return
+	} else if last > 1 {
+		runnerUp := last - 1
+		root = s[runnerUp] + "." + s[last]
+	}
 	return
 }
 
