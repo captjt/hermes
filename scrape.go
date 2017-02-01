@@ -99,25 +99,33 @@ func scrapeDocument(ctx *fetchbot.Context, doc *goquery.Document, tags []string)
 	// scrape page <Title>
 	doc.Find("head").Each(func(i int, s *goquery.Selection) {
 		title := s.Find("title").Text()
-		d.Title = strings.TrimSpace(strings.Replace(title, " ", " ", -1))
+		title = strings.TrimSpace(strings.Replace(title, "\n", " ", -1))
+		title = strings.TrimSpace(strings.Replace(title, " ", " ", -1))
+		d.Title = title
 	})
 
 	// scrape page <Description>
 	doc.Find("meta").Each(func(i int, s *goquery.Selection) {
 		if name, _ := s.Attr("name"); strings.EqualFold(name, "description") {
 			description, _ := s.Attr("content")
-			d.Description = strings.TrimSpace(strings.Replace(description, " ", " ", -1))
+			description = strings.TrimSpace(strings.Replace(description, "\n", " ", -1))
+			description = strings.TrimSpace(strings.Replace(description, " ", " ", -1))
+			d.Description = description
 		}
 	})
 
 	if len(tags) > 0 {
 		for _, tag := range tags {
 			text := returnText(doc, tag)
-			content += " " + strings.TrimSpace(strings.Replace(text, " ", " ", -1))
+			text = strings.TrimSpace(strings.Replace(text, "\n", " ", -1))
+			text = strings.TrimSpace(strings.Replace(text, " ", " ", -1))
+			content += " " + text
 		}
 	} else {
 		text := returnText(doc, "default")
-		content += " " + strings.TrimSpace(strings.Replace(text, " ", " ", -1))
+		text = strings.TrimSpace(strings.Replace(text, "\n", " ", -1))
+		text = strings.TrimSpace(strings.Replace(text, " ", " ", -1))
+		content += " " + text
 	}
 
 	d.Tag = generateTag(ctx.Cmd.URL().Host)
