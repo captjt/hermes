@@ -7,3 +7,6 @@ import:
 - package: github.com/PuerkitoBio/fetchbot
 - package: github.com/PuerkitoBio/goquery
 - package: gopkg.in/olivere/elastic.v5
+- package: golang.org/x/sync
+  subpackages:
+  - errgroup

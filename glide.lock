@@ -1,5 +1,5 @@
-hash: d7fe0226727b356a2d1941d8f5c0c11af224ada18d26d27cba6abab1dbc04ddf
-updated: 2017-01-19T20:03:23.557919209-05:00
+hash: 69cc80a5026e89de97d0c2e0a958244b2d3ec83cfd966963407a6526adff9cae
+updated: 2017-02-08T10:10:00.778319247-05:00
 imports:
 - name: github.com/andybalholm/cascadia
   version: 349dd0209470eabd9514242c688c403c0926d266
@@ -16,6 +16,10 @@ imports:
   - context/ctxhttp
   - html
   - html/atom
+- name: golang.org/x/sync
+  version: 450f422ab23cf9881c94e2db30cac0eb1b7cf80c
+  subpackages:
+  - errgroup
 - name: gopkg.in/olivere/elastic.v5
   version: f27a28dd68c359eb20ce5918a7d976f34c18cf03
   subpackages:

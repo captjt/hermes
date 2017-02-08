@@ -1,6 +1,7 @@
 package hermes
 
 import (
+	"encoding/base64"
 	"net/http"
 	"strings"
 	"sync"
@@ -96,6 +97,13 @@ func scrapeDocument(ctx *fetchbot.Context, doc *goquery.Document, tags []string)
 		d       Document
 		content string
 	)
+
+	// generate random id for the document
+	buf := make([]byte, 32)
+	id := base64.URLEncoding.EncodeToString(buf)
+
+	d.ID = id
+
 	// scrape page <Title>
 	doc.Find("head").Each(func(i int, s *goquery.Selection) {
 		title := s.Find("title").Text()
