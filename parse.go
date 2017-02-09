@@ -35,6 +35,7 @@ type (
 		UserAgent          string        `json:"user_agent"`         // set the user agent string for the crawler... to be polite and identify yourself
 		WorkerIdleTTL      time.Duration `json:"worker_timeout"`     // time-to-live for a host URL's goroutine
 		AutoClose          bool          `json:"autoclose"`          // sets the application to terminate if the WorkerIdleTTL time is passed (must be true)
+		EnableLogging      bool          `json:"enable_logging"`     // sets whether or not to log to a file
 	}
 )
 

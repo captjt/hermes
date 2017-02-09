@@ -10,5 +10,6 @@
     "mem_stats_interval": 30,
     "user_agent": "(Hermes github.com/jtaylor32/hermes)",
     "worker_timeout": 30,
-    "autoclose": true
+    "autoclose": true,
+    "enable_logging": true
 }
