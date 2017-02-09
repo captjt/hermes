@@ -20,26 +20,30 @@ func main() {
 
 	// start the crawler
 	for _, s := range src.Links {
-		u, parseErr := url.Parse(s.RootLink)
-		if parseErr != nil {
-			log.Fatal(parseErr)
+		u, err := url.Parse(s.RootLink)
+		if err != nil {
+			log.Fatal(err)
 		}
 
 		documents, done := hermes.Crawl(settings, s, u)
 		if done {
 			ingestionSet = documents
 		}
-
-		_, storeErr := hermes.Store(hermes.Index{
-			Host:      settings.ElasticsearchHost,
-			Index:     settings.ElasticsearchIndex,
-			Documents: ingestionSet,
-		}, settings.ElasticsearchType)
-		if storeErr != nil {
-			panic(storeErr)
-		}
 	}
 
-	fmt.Println("Successful ETL 🌎🌍🌏")
-	os.Exit(0)
+	fmt.Println("Total Documents in ingestion set: ", len(ingestionSet))
+
+	err := hermes.Store(
+		len(ingestionSet),
+		settings.ElasticsearchHost,
+		settings.ElasticsearchIndex,
+		settings.ElasticsearchType,
+		ingestionSet,
+	)
+	if err != nil {
+		log.Fatal(err)
+	} else {
+		fmt.Println("Successful ETL 🌎🌍🌏")
+		os.Exit(0)
+	}
 }
