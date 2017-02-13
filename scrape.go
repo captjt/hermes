@@ -12,6 +12,7 @@ import (
 
 	"github.com/PuerkitoBio/fetchbot"
 	"github.com/PuerkitoBio/goquery"
+	log "github.com/Sirupsen/logrus"
 	"golang.org/x/net/html"
 )
 
@@ -33,11 +34,17 @@ func respGenerator(url string) <-chan *http.Response {
 	go func(url string) {
 		req, err := http.NewRequest("GET", url, nil)
 		if err != nil {
-			panic(err)
+			log.WithFields(log.Fields{
+				"error": err,
+			}).Panic("a response generator scrape fatal GET request error")
+			// panic(err)
 		}
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
-			panic(err)
+			log.WithFields(log.Fields{
+				"error": err,
+			}).Panic("a response generator scrape fatal Do request error")
+			// panic(err)
 		}
 		out <- resp
 		wg.Done()
@@ -58,7 +65,10 @@ func rootGenerator(in <-chan *http.Response) <-chan *html.Node {
 		go func(resp *http.Response) {
 			root, err := html.Parse(resp.Body)
 			if err != nil {
-				panic(err)
+				log.WithFields(log.Fields{
+					"error": err,
+				}).Panic("a root generator scrape fatal error")
+				// panic(err)
 			}
 			out <- root
 			wg.Done()

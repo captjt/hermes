@@ -3,11 +3,13 @@ package hermes
 import (
 	"errors"
 	"fmt"
-	"log"
 	"math/rand"
 	"sync/atomic"
 	"time"
 
+	"strconv"
+
+	log "github.com/Sirupsen/logrus"
 	"golang.org/x/net/context"
 	"golang.org/x/sync/errgroup"
 	"gopkg.in/olivere/elastic.v5"
@@ -46,26 +48,52 @@ func Store(n int, host string, index string, typ string, docs []Document) error 
 	rand.Seed(time.Now().UnixNano())
 
 	if host == "" {
-		log.Fatal("missing host parameter")
+		log.WithFields(log.Fields{
+			"total documents": n,
+			"host":            host,
+			"index":           index,
+			"type":            typ,
+		}).Fatal("missing host parameter")
 		return errors.New("missing host parameter")
 	}
 	if index == "" {
-		log.Fatal("missing index parameter")
+		log.WithFields(log.Fields{
+			"total documents": n,
+			"host":            host,
+			"index":           index,
+			"type":            typ,
+		}).Fatal("missing index parameter")
 		return errors.New("missing index parameter")
 	}
 	if typ == "" {
-		log.Fatal("missing type parameter")
+		log.WithFields(log.Fields{
+			"total documents": n,
+			"host":            host,
+			"index":           index,
+			"type":            typ,
+		}).Fatal("missing type parameter")
 		return errors.New("missing type parameter")
 	}
 	if n <= 0 {
-		log.Fatal("n must be a positive number")
+		log.WithFields(log.Fields{
+			"total documents": n,
+			"host":            host,
+			"index":           index,
+			"type":            typ,
+		}).Fatal("total documents must be a positive number")
 		return errors.New("n must be a positive number")
 	}
 
 	// Create an Elasticsearch client
 	client, err := elastic.NewClient(elastic.SetURL(host), elastic.SetSniff(true))
 	if err != nil {
-		log.Fatal(err)
+		log.WithFields(log.Fields{
+			"total documents": n,
+			"host":            host,
+			"index":           index,
+			"type":            typ,
+			"error":           err,
+		}).Fatal("an elasticsearch client connection error")
 		return err
 	}
 
@@ -112,6 +140,9 @@ func Store(n int, host string, index string, typ string, docs []Document) error 
 				// Commit
 				res, err := bulk.Do(ctx)
 				if err != nil {
+					log.WithFields(log.Fields{
+						"error": err,
+					}).Error("an elasticsearch bulk insert error")
 					return err
 				}
 				if res.Errors {
@@ -134,6 +165,9 @@ func Store(n int, host string, index string, typ string, docs []Document) error 
 		if bulk.NumberOfActions() > 0 {
 			_, err = bulk.Do(ctx)
 			if err != nil {
+				log.WithFields(log.Fields{
+					"error": err,
+				}).Error("an elasticsearch bulk insert error")
 				return err
 			}
 		}
@@ -142,7 +176,9 @@ func Store(n int, host string, index string, typ string, docs []Document) error 
 
 	// Wait until all goroutines are finished
 	if err := g.Wait(); err != nil {
-		log.Fatal(err)
+		log.WithFields(log.Fields{
+			"error": err,
+		}).Fatal("a global goroutine wait error")
 		return err
 	}
 
@@ -151,6 +187,12 @@ func Store(n int, host string, index string, typ string, docs []Document) error 
 	sec := int(dur)
 	pps := int64(float64(total) / dur)
 	fmt.Printf("\n\n|- %10d -|- %6d req/s -|- %02d:%02d -|\n", total, pps, sec/60, sec%60)
+	log.WithFields(log.Fields{
+		"total":    total,
+		"req/s":    pps,
+		"duration": strconv.Itoa(sec/60) + ":" + strconv.Itoa(sec%60),
+		"error":    err,
+	}).Info("total storage statistics")
 
 	return nil
 }
