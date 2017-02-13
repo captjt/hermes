@@ -6,10 +6,9 @@ import (
 	"net/url"
 	"os"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
-
-	"strings"
 
 	"github.com/PuerkitoBio/fetchbot"
 	"github.com/PuerkitoBio/goquery"
@@ -33,19 +32,23 @@ func init() {
 	log.SetFormatter(&log.JSONFormatter{})
 
 	// File to output logs to
-	// filename := time.Now().String() + "-log"
-	// f, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE, 0755)
-	// if err != nil {
-	// 	panic(err)
-	// }
-
-	// defer f.Close()
+	now := time.Now()
+	pre := now.Format("2006-01-02")
+	filename := "./" + pre + "-log.log"
+	f, err := os.OpenFile(
+		filename,
+		os.O_CREATE|os.O_RDWR|os.O_APPEND,
+		0755,
+	)
+	if err != nil {
+		panic(err)
+	}
 
 	// Output to filename
-	// log.SetOutput(f)
+	log.SetOutput(f)
 
 	// Output to stdout instead of the default stderr
-	log.SetOutput(os.Stdout)
+	// log.SetOutput(os.Stdout)
 
 	// Only log the warning severity or above.
 	log.SetLevel(log.InfoLevel)
