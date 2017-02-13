@@ -36,14 +36,14 @@ func respGenerator(url string) <-chan *http.Response {
 		if err != nil {
 			log.WithFields(log.Fields{
 				"error": err,
-			}).Panic("a response generator scrape fatal GET request error")
+			}).Fatal("a response generator scrape fatal GET request error")
 			// panic(err)
 		}
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			log.WithFields(log.Fields{
 				"error": err,
-			}).Panic("a response generator scrape fatal Do request error")
+			}).Fatal("a response generator scrape fatal Do request error")
 			// panic(err)
 		}
 		out <- resp
@@ -67,7 +67,7 @@ func rootGenerator(in <-chan *http.Response) <-chan *html.Node {
 			if err != nil {
 				log.WithFields(log.Fields{
 					"error": err,
-				}).Panic("a root generator scrape fatal error")
+				}).Fatal("a root generator scrape fatal error")
 				// panic(err)
 			}
 			out <- root

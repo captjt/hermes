@@ -53,15 +53,15 @@ func main() {
 
 		fmt.Println("Total Documents in ingestion set: ", len(ingestionSet))
 
-		err := hermes.Store(
+		e := hermes.Store(
 			len(ingestionSet),
 			settings.ElasticsearchHost,
 			settings.ElasticsearchIndex,
 			settings.ElasticsearchType,
 			ingestionSet,
 		)
-		if err != nil {
-			log.Fatal(err)
+		if e != nil {
+			log.Fatal(e)
 		}
 	}
 

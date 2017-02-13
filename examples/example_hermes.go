@@ -29,21 +29,21 @@ func main() {
 		if done {
 			ingestionSet = documents
 		}
+
+		fmt.Println("Total Documents in ingestion set: ", len(ingestionSet))
+
+		e := hermes.Store(
+			len(ingestionSet),
+			settings.ElasticsearchHost,
+			settings.ElasticsearchIndex,
+			settings.ElasticsearchType,
+			ingestionSet,
+		)
+		if e != nil {
+			log.Fatal(e)
+		}
 	}
 
-	fmt.Println("Total Documents in ingestion set: ", len(ingestionSet))
-
-	err := hermes.Store(
-		len(ingestionSet),
-		settings.ElasticsearchHost,
-		settings.ElasticsearchIndex,
-		settings.ElasticsearchType,
-		ingestionSet,
-	)
-	if err != nil {
-		log.Fatal(err)
-	} else {
-		fmt.Println("Successful ETL 🌎🌍🌏")
-		os.Exit(0)
-	}
+	fmt.Println("Successful ETL 🌎🌍🌏")
+	os.Exit(0)
 }
