@@ -9,12 +9,12 @@ The premise behind all of this is that I wanted to have sort of an all in one wa
 This is a completely fun prototype.  I do plan on abstracting it out eventually and making it a reusable package but for now I am just making it something to kind of simulate a simple ETL of webpage content.
 
 Install
-====================
+=======
 
 `go get github.com/jtaylor32/hermes`
 
 Example
-====================
+=======
 
 **You will need to make sure you follow the example** `data.json` **and** `settings.json` **files**
 
@@ -70,7 +70,12 @@ func main() {
 }
 ```
 
+License
+=======
+
+The [BSD 3-Clause license](http://opensource.org/licenses/BSD-3-Clause), the same as the [Go language](http://golang.org/LICENSE).
+
 Acknowledgments
-====================
+===============
 
 Huge thanks to [PuerkitoBio](https://github.com/PuerkitoBio) and the work he has done on all his projects!
