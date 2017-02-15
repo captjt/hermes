@@ -27,6 +27,43 @@ var (
 	badLinks []string // bad links TODO make non global
 )
 
+// A Runner defines the parameters for running a single instance of Hermes ETL
+type Runner struct {
+	// The CrawlDelay is the set time for the Runner to abide by.
+	CrawlDelay time.Duration
+
+	// The CancelDuration is the set time for the Runner to cancel immediately.
+	CancelDuration time.Duration
+
+	// The CancelAtURL is the specific URL that the Runner will cancel on.
+	CancelAtURL string
+
+	// The StopDuration is the set time for the Runner to stop at while still processing the remaining links in the queue.
+	StopDuration time.Duration
+
+	// The StopAtURL is the specific URL that the Runner will stop on. It will still process the remaining links in the queue.
+	StopAtURL string
+
+	// The MemStatsInterval is a set time for when the Runner will output memory statistics to standard output.
+	MemStatsInterval time.Duration
+
+	// The UserAgent is the Runner's user agent string name. Be polite and identify yourself for people to see.
+	UserAgent string
+
+	// The WorkerIdleTTL keeps a watch for an idle timeout. When the Runner is crawling if it has finished it's total crawl
+	// it will exit after this timeout.
+	WorkerIdleTTL time.Duration
+
+	// AutoClose will make the Runner terminate and successfully exit after the WorkerIdleTTL if set to true.
+	AutoClose bool
+
+	// The URL a reference pointer to a URL type
+	URL *url.URL
+
+	// the ingestionSet is the array of documents that is scraped by the scraper to be sent back for storage.
+	ingestionSet []Document
+}
+
 func init() {
 	// Log as JSON instead of the default ASCII formatter.
 	log.SetFormatter(&log.JSONFormatter{})
@@ -56,7 +93,7 @@ func init() {
 
 // Crawl function that will take a url string and start firing out some crawling functions
 // it will return true/false based on the url root it starts with.
-func Crawl(settings Settings, linkSettings CustomSettings, u *url.URL) ([]Document, bool) {
+func (r *Runner) Crawl(settings Settings, linkSettings CustomSettings, u *url.URL) ([]Document, bool) {
 	// Create the muxer
 	mux := fetchbot.NewMux()
 
@@ -87,12 +124,13 @@ func Crawl(settings Settings, linkSettings CustomSettings, u *url.URL) ([]Docume
 				return
 			}
 			// Enqueue all links as HEAD requests
-			enqueueLinks(ctx, doc, u, linkSettings)
+			// TODO fix linkSettings to be settings for TLD/Subdomain/etc.
+			enqueueLinks(ctx, doc, r.URL, linkSettings)
 		}))
 
 	// Handle HEAD requests for html responses coming from the source host - we don't want
 	// to crawl links from other hosts.
-	mux.Response().Method("HEAD").Host(u.Host).ContentType("text/html").Handler(fetchbot.HandlerFunc(
+	mux.Response().Method("HEAD").Host(r.URL.Host).ContentType("text/html").Handler(fetchbot.HandlerFunc(
 		func(ctx *fetchbot.Context, res *http.Response, err error) {
 			if _, err := ctx.Q.SendStringGet(ctx.Cmd.URL().String()); err != nil {
 				fmt.Printf("[ERR] %s %s - %s\n", ctx.Cmd.Method(), ctx.Cmd.URL(), err)
@@ -105,28 +143,30 @@ func Crawl(settings Settings, linkSettings CustomSettings, u *url.URL) ([]Docume
 		}))
 
 	// Create the Fetcher, handle the logging first, then dispatch to the Muxer
+	// TODO convert linkSettings to used variables in Runner struct
 	h := scrapeHandler(mux, linkSettings)
-	if settings.StopAtURL != "" || settings.CancelAtURL != "" {
-		stopURL := settings.StopAtURL
-		if settings.CancelAtURL != "" {
-			stopURL = settings.CancelAtURL
+	if r.StopAtURL != "" || r.CancelAtURL != "" {
+		stopURL := r.StopAtURL
+		if r.CancelAtURL != "" {
+			stopURL = r.CancelAtURL
 		}
-		h = stopHandler(stopURL, settings.CancelAtURL != "", scrapeHandler(mux, linkSettings))
+		// TODO convert linkSettings to used variables in Runner struct
+		h = stopHandler(stopURL, r.CancelAtURL != "", scrapeHandler(mux, linkSettings))
 	}
 	f := fetchbot.New(h)
 
 	// set the fetchbots settings from flag parameters
-	f.UserAgent = settings.UserAgent
-	f.CrawlDelay = settings.CrawlDelay * time.Second
-	f.WorkerIdleTTL = settings.WorkerIdleTTL * time.Second
-	f.AutoClose = settings.AutoClose
+	f.UserAgent = r.UserAgent
+	f.CrawlDelay = r.CrawlDelay * time.Second
+	f.WorkerIdleTTL = r.WorkerIdleTTL * time.Second
+	f.AutoClose = r.AutoClose
 
 	// First mem stat print must be right after creating the fetchbot
-	if settings.MemStatsInterval > 0 {
+	if r.MemStatsInterval > 0 {
 		// Print starting stats
 		printMemStats(nil)
 		// Run at regular intervals
-		runMemStats(f, settings.MemStatsInterval)
+		runMemStats(f, r.MemStatsInterval)
 		// On exit, print ending stats after a GC
 		defer func() {
 			runtime.GC()
@@ -139,11 +179,11 @@ func Crawl(settings Settings, linkSettings CustomSettings, u *url.URL) ([]Docume
 
 	// if a stop or cancel is requested after some duration, launch the goroutine
 	// that will stop or cancel.
-	if settings.StopDuration*time.Minute > 0 || settings.CancelDuration*time.Minute > 0 {
-		after := settings.StopDuration * time.Minute
+	if r.StopDuration*time.Minute > 0 || r.CancelDuration*time.Minute > 0 {
+		after := r.StopDuration * time.Minute
 		stopFunc := q.Close
-		if settings.CancelDuration != 0 {
-			after = settings.CancelDuration * time.Minute
+		if r.CancelDuration != 0 {
+			after = r.CancelDuration * time.Minute
 			stopFunc = q.Cancel
 		}
 
@@ -155,12 +195,12 @@ func Crawl(settings Settings, linkSettings CustomSettings, u *url.URL) ([]Docume
 	}
 
 	// Enqueue the seed, which is the first entry in the dup map
-	dup[linkSettings.RootLink] = true
-	_, err := q.SendStringGet(linkSettings.RootLink)
+	dup[r.URL.String()] = true
+	_, err := q.SendStringGet(r.URL.String())
 	if err != nil {
-		fmt.Printf("[ERR] GET %s - %s\n", linkSettings.RootLink, err)
+		fmt.Printf("[ERR] GET %s - %s\n", r.URL.String(), err)
 		log.WithFields(log.Fields{
-			"url":   linkSettings.RootLink,
+			"url":   r.URL.String(),
 			"error": err,
 		}).Error("a queue SendStringGet error starting 'enqueue' seed")
 	}
@@ -199,11 +239,13 @@ func stopHandler(stopurl string, cancel bool, wrapped fetchbot.Handler) fetchbot
 // scrapeHandler will fire a scraper function on the page if successful response,
 // append the scraped document stored for index ingestion
 // and dispatches the call to the wrapped Handler.
+// TODO convert linkSettings to caon use []string for Tags
 func scrapeHandler(wrapped fetchbot.Handler, linkSettings CustomSettings) fetchbot.Handler {
 	return fetchbot.HandlerFunc(func(ctx *fetchbot.Context, res *http.Response, err error) {
 		if err == nil {
 			if res.StatusCode == 200 {
 				url := ctx.Cmd.URL().String()
+				// TODO fix linkSettings to be []string for Scraping Tags
 				responseDocument, err := Scrape(ctx, linkSettings)
 				if err != nil {
 					fmt.Printf("[ERR] SCRAPE URL: %s - %s", url, err)
@@ -228,6 +270,7 @@ func scrapeHandler(wrapped fetchbot.Handler, linkSettings CustomSettings) fetchb
 
 // enqueueLinks will make sure we are adding links to the queue to be processed for crawling/scraping
 // this will pull all the href attributes on pages, check for duplicates and add them to the queue
+// TODO convert settings CustomSettings to Runner pointer with settings specific
 func enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document, host *url.URL, settings CustomSettings) {
 	mu.Lock()
 
@@ -266,6 +309,22 @@ func enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document, host *url.URL, s
 				"url":   u.String(),
 				"error": "email link error",
 			}).Info("an email catch in enqueueLinks")
+			return
+		}
+
+		fragmentCheck := false
+		func(u *url.URL, fragmentCheck *bool) {
+			if u.Fragment != "" {
+				*fragmentCheck = true
+			}
+		}(u, &fragmentCheck)
+
+		if fragmentCheck == true {
+			fmt.Printf("[ERR] URL with fragment tag - %s\n", u.String())
+			log.WithFields(log.Fields{
+				"url":   u.String(),
+				"error": "url error with fragment",
+			}).Info("a fragment catch in enqueueLinks")
 			return
 		}
 
