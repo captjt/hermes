@@ -261,10 +261,7 @@ func (r *Runner) scrapeHandler(wrapped fetchbot.Handler) fetchbot.Handler {
 						"error": err,
 					}).Error("an error in scrape handler")
 				}
-				fmt.Println("===== Length of ingestion set: ", len(r.ingestionSet), " =====")
-				fmt.Println("+1 scraped document")
 				r.ingestionSet = append(r.ingestionSet, responseDocument)
-				fmt.Println("===== Length of ingestion set: ", len(r.ingestionSet), " =====")
 			}
 			fmt.Printf("[%d] %s %s - %s\n", res.StatusCode, ctx.Cmd.Method(), ctx.Cmd.URL(), res.Header.Get("Content-Type"))
 			log.WithFields(log.Fields{

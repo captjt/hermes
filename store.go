@@ -40,58 +40,66 @@ type (
 		Index     string
 		Documents []Document
 	}
+
+	// The Elasticsearch struct type is to model the storage into a single ELasticsearch node.
+	// It must have a host, index and type to ingest data to.
+	Elasticsearch struct {
+		Host, Index, Type string
+	}
 )
 
 // Store function will take total documents, es host, es index, es type and the Documents to be ingested.
 // It will return with an error if faulted or will print stats on ingestion process (Total, Requests/sec, Time to ingest)
-func Store(n int, host string, index string, typ string, docs []Document) error {
+func (e *Elasticsearch) Store(docs []Document) error {
 	rand.Seed(time.Now().UnixNano())
 
-	if host == "" {
+	n := len(docs)
+
+	if e.Host == "" {
 		log.WithFields(log.Fields{
 			"total documents": n,
-			"host":            host,
-			"index":           index,
-			"type":            typ,
+			"host":            e.Host,
+			"index":           e.Index,
+			"type":            e.Type,
 		}).Fatal("missing host parameter")
 		return errors.New("missing host parameter")
 	}
-	if index == "" {
+	if e.Index == "" {
 		log.WithFields(log.Fields{
 			"total documents": n,
-			"host":            host,
-			"index":           index,
-			"type":            typ,
+			"host":            e.Host,
+			"index":           e.Index,
+			"type":            e.Type,
 		}).Fatal("missing index parameter")
 		return errors.New("missing index parameter")
 	}
-	if typ == "" {
+	if e.Type == "" {
 		log.WithFields(log.Fields{
 			"total documents": n,
-			"host":            host,
-			"index":           index,
-			"type":            typ,
+			"host":            e.Host,
+			"index":           e.Index,
+			"type":            e.Type,
 		}).Fatal("missing type parameter")
 		return errors.New("missing type parameter")
 	}
 	if n <= 0 {
 		log.WithFields(log.Fields{
 			"total documents": n,
-			"host":            host,
-			"index":           index,
-			"type":            typ,
+			"host":            e.Host,
+			"index":           e.Index,
+			"type":            e.Type,
 		}).Fatal("total documents must be a positive number")
 		return errors.New("n must be a positive number")
 	}
 
 	// Create an Elasticsearch client
-	client, err := elastic.NewClient(elastic.SetURL(host), elastic.SetSniff(true))
+	client, err := elastic.NewClient(elastic.SetURL(e.Host), elastic.SetSniff(true))
 	if err != nil {
 		log.WithFields(log.Fields{
 			"total documents": n,
-			"host":            host,
-			"index":           index,
-			"type":            typ,
+			"host":            e.Host,
+			"index":           e.Index,
+			"type":            e.Type,
 			"error":           err,
 		}).Fatal("an elasticsearch client connection error")
 		return err
@@ -125,7 +133,7 @@ func Store(n int, host string, index string, typ string, docs []Document) error 
 	// Second goroutine will consume the documents sent from the first and bulk insert into ES
 	var total uint64
 	g.Go(func() error {
-		bulk := client.Bulk().Index(index).Type(typ)
+		bulk := client.Bulk().Index(e.Index).Type(e.Type)
 		for d := range docsc {
 			// Simple progress
 			current := atomic.AddUint64(&total, 1)
