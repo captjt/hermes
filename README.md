@@ -33,41 +33,50 @@ import (
 func main() {
 	// create an array of Documents
 	var ingestionSet []hermes.Document
-	// parse the data.json with type/links to pass into the crawler
-	src := hermes.ParseLinks()
 
-	// parse the settings.json with settings to pass into hermes
-	settings := hermes.ParseSettings()
+	u, e := url.Parse("http://jt.codes")
+	if e != nil {
+		panic(e)
+	}
 
-	// start the crawler
-	for _, s := range src.Links {
-		u, err := url.Parse(s.RootLink)
-		if err != nil {
-			log.Fatal(err)
-		}
+	r := hermes.Runner{
+		CrawlDelay:       1,
+		CancelDuration:   60,
+		CancelAtURL:      "",
+		StopDuration:     60,
+		StopAtURL:        "",
+		MemStatsInterval: 0,
+		UserAgent:        "(Hermes Bot)",
+		WorkerIdleTTL:    10,
+		AutoClose:        true,
+		URL:              u,
+		Tags:             []string{"div", "h1", "p"},
+		TopLevelDomain:   true,
+		Subdomain:        true,
+	}
 
-		documents, done := hermes.Crawl(settings, s, u)
-		if done {
-			ingestionSet = documents
-		}
+	i, b := r.Crawl()
+	if b {
+		ingestionSet = i
+	}
 
-		fmt.Println("Total Documents in ingestion set: ", len(ingestionSet))
+	fmt.Println("Total Documents in ingestion set: ", len(ingestionSet))
 
-		e := hermes.Store(
-			len(ingestionSet),
-			settings.ElasticsearchHost,
-			settings.ElasticsearchIndex,
-			settings.ElasticsearchType,
-			ingestionSet,
-		)
-		if e != nil {
-			log.Fatal(e)
-		}
+	es := hermes.Elasticsearch{
+		Host:  "http://localhost:9200",
+		Index: "search_index",
+		Type:  "feb_16",
+	}
+
+	in := es.Store(ingestionSet)
+	if in != nil {
+		log.Fatal(e)
 	}
 
 	fmt.Println("Successful ETL 🌎🌍🌏")
 	os.Exit(0)
 }
+
 ```
 
 License
