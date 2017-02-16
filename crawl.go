@@ -60,6 +60,18 @@ type Runner struct {
 	// The URL a reference pointer to a URL type
 	URL *url.URL
 
+	// The Tags are the HTML tags you want to scrape with this Runner
+	Tags []string
+
+	// The TopLevelDomain is a toggle to determine if you want to limit the Runner to a specific TLD. (i.e. .com, .edu, .gov, etc.)
+	// If it is set to true it will make sure it stays to the URL's specific TLD.
+	TopLevelDomain bool
+
+	// The Subdomain is a toggle to determine if you want to limit the Runner to a subdomain of the URL. If it is set to true
+	// it will make sure it stays to the host's domain. Think of it like a wildcard -- *.github.com -- anything link that has
+	// github.com will be fetched.
+	Subdomain bool
+
 	// the ingestionSet is the array of documents that is scraped by the scraper to be sent back for storage.
 	ingestionSet []Document
 }
@@ -93,7 +105,7 @@ func init() {
 
 // Crawl function that will take a url string and start firing out some crawling functions
 // it will return true/false based on the url root it starts with.
-func (r *Runner) Crawl(settings Settings, linkSettings CustomSettings, u *url.URL) ([]Document, bool) {
+func (r *Runner) Crawl() ([]Document, bool) {
 	// Create the muxer
 	mux := fetchbot.NewMux()
 
@@ -124,8 +136,7 @@ func (r *Runner) Crawl(settings Settings, linkSettings CustomSettings, u *url.UR
 				return
 			}
 			// Enqueue all links as HEAD requests
-			// TODO fix linkSettings to be settings for TLD/Subdomain/etc.
-			enqueueLinks(ctx, doc, r.URL, linkSettings)
+			r.enqueueLinks(ctx, doc)
 		}))
 
 	// Handle HEAD requests for html responses coming from the source host - we don't want
@@ -143,15 +154,13 @@ func (r *Runner) Crawl(settings Settings, linkSettings CustomSettings, u *url.UR
 		}))
 
 	// Create the Fetcher, handle the logging first, then dispatch to the Muxer
-	// TODO convert linkSettings to used variables in Runner struct
-	h := scrapeHandler(mux, linkSettings)
+	h := r.scrapeHandler(mux)
 	if r.StopAtURL != "" || r.CancelAtURL != "" {
 		stopURL := r.StopAtURL
 		if r.CancelAtURL != "" {
 			stopURL = r.CancelAtURL
 		}
-		// TODO convert linkSettings to used variables in Runner struct
-		h = stopHandler(stopURL, r.CancelAtURL != "", scrapeHandler(mux, linkSettings))
+		h = stopHandler(stopURL, r.CancelAtURL != "", r.scrapeHandler(mux))
 	}
 	f := fetchbot.New(h)
 
@@ -206,7 +215,7 @@ func (r *Runner) Crawl(settings Settings, linkSettings CustomSettings, u *url.UR
 	}
 	q.Block()
 
-	return ingestionSet, true
+	return r.ingestionSet, true
 }
 
 // stopHandler stops the fetcher if the stopurl is reached. Otherwise it dispatches
@@ -239,14 +248,12 @@ func stopHandler(stopurl string, cancel bool, wrapped fetchbot.Handler) fetchbot
 // scrapeHandler will fire a scraper function on the page if successful response,
 // append the scraped document stored for index ingestion
 // and dispatches the call to the wrapped Handler.
-// TODO convert linkSettings to caon use []string for Tags
-func scrapeHandler(wrapped fetchbot.Handler, linkSettings CustomSettings) fetchbot.Handler {
+func (r *Runner) scrapeHandler(wrapped fetchbot.Handler) fetchbot.Handler {
 	return fetchbot.HandlerFunc(func(ctx *fetchbot.Context, res *http.Response, err error) {
 		if err == nil {
 			if res.StatusCode == 200 {
 				url := ctx.Cmd.URL().String()
-				// TODO fix linkSettings to be []string for Scraping Tags
-				responseDocument, err := Scrape(ctx, linkSettings)
+				responseDocument, err := Scrape(ctx, r.Tags)
 				if err != nil {
 					fmt.Printf("[ERR] SCRAPE URL: %s - %s", url, err)
 					log.WithFields(log.Fields{
@@ -254,7 +261,10 @@ func scrapeHandler(wrapped fetchbot.Handler, linkSettings CustomSettings) fetchb
 						"error": err,
 					}).Error("an error in scrape handler")
 				}
-				ingestionSet = append(ingestionSet, responseDocument)
+				fmt.Println("===== Length of ingestion set: ", len(r.ingestionSet), " =====")
+				fmt.Println("+1 scraped document")
+				r.ingestionSet = append(r.ingestionSet, responseDocument)
+				fmt.Println("===== Length of ingestion set: ", len(r.ingestionSet), " =====")
 			}
 			fmt.Printf("[%d] %s %s - %s\n", res.StatusCode, ctx.Cmd.Method(), ctx.Cmd.URL(), res.Header.Get("Content-Type"))
 			log.WithFields(log.Fields{
@@ -270,8 +280,7 @@ func scrapeHandler(wrapped fetchbot.Handler, linkSettings CustomSettings) fetchb
 
 // enqueueLinks will make sure we are adding links to the queue to be processed for crawling/scraping
 // this will pull all the href attributes on pages, check for duplicates and add them to the queue
-// TODO convert settings CustomSettings to Runner pointer with settings specific
-func enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document, host *url.URL, settings CustomSettings) {
+func (r *Runner) enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document) {
 	mu.Lock()
 
 	doc.Find("a[href]").Each(func(i int, s *goquery.Selection) {
@@ -334,8 +343,8 @@ func enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document, host *url.URL, s
 		// catch the duplicate urls here before trying to add them to the queue
 		if !dup[u.String()] {
 			// tld & subdomain
-			if settings.TopLevelDomain == true && settings.Subdomain == true {
-				rootDomain := getDomain(host.Host)
+			if r.TopLevelDomain == true && r.Subdomain == true {
+				rootDomain := getDomain(r.URL.Host)
 				current := getDomain(u.Host)
 
 				if rootDomain == current {
@@ -349,17 +358,17 @@ func enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document, host *url.URL, s
 						return
 					}
 				} else {
-					fmt.Printf("catch: out of domain scope -- %s != %s\n", u.Host, host)
+					fmt.Printf("catch: out of domain scope -- %s != %s\n", u.Host, r.URL.Host)
 					log.WithFields(log.Fields{
 						"host": u.Host,
-						"url":  host,
+						"url":  r.URL.Host,
 					}).Info("a link catch out of domain scope")
 				}
 			}
 
 			// tld check
-			if settings.TopLevelDomain == true && settings.Subdomain == false {
-				rootTLD := getDomain(host.Host)
+			if r.TopLevelDomain == true && r.Subdomain == false {
+				rootTLD := getDomain(r.URL.Host)
 				current := getTLD(u.Host)
 
 				if rootTLD == current {
@@ -376,8 +385,8 @@ func enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document, host *url.URL, s
 			}
 
 			// subdomain check
-			if settings.Subdomain == true && settings.TopLevelDomain == false {
-				rootDomain := getDomain(host.Host)
+			if r.Subdomain == true && r.TopLevelDomain == false {
+				rootDomain := getDomain(r.URL.Host)
 				current := getDomain(u.Host)
 
 				if rootDomain == current {
@@ -391,10 +400,10 @@ func enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document, host *url.URL, s
 						return
 					}
 				} else {
-					fmt.Printf("catch: out of domain scope -- %s != %s\n", u.Host, host)
+					fmt.Printf("catch: out of domain scope -- %s != %s\n", u.Host, r.URL.Host)
 					log.WithFields(log.Fields{
 						"host": u.Host,
-						"url":  host,
+						"url":  r.URL.Host,
 					}).Info("a link catch out of domain scope")
 				}
 			}
