@@ -1,6 +1,7 @@
 package hermes
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -63,6 +64,10 @@ type Runner struct {
 	// The Tags are the HTML tags you want to scrape with this Runner
 	Tags []string
 
+	// If you want to specify how many documents you want to crawl/scrape the Runner will hit you can specify the size here.
+	// If you don't have a specific preference you can leave it alone or set it to 0.
+	MaximumDocuments int
+
 	// The TopLevelDomain is a toggle to determine if you want to limit the Runner to a specific TLD. (i.e. .com, .edu, .gov, etc.)
 	// If it is set to true it will make sure it stays to the URL's specific TLD.
 	TopLevelDomain bool
@@ -105,8 +110,13 @@ func init() {
 
 // Crawl function that will take a url string and start firing out some crawling functions
 // it will return true/false based on the url root it starts with.
-func (r *Runner) Crawl() ([]Document, bool) {
+func (r *Runner) Crawl() ([]Document, error) {
 	// Create the muxer
+
+	if r.MaximumDocuments < 0 {
+		return r.ingestionSet, errors.New("you cannot have a negative document size")
+	}
+
 	mux := fetchbot.NewMux()
 
 	// Handle all errors the same
@@ -154,13 +164,14 @@ func (r *Runner) Crawl() ([]Document, bool) {
 		}))
 
 	// Create the Fetcher, handle the logging first, then dispatch to the Muxer
-	h := r.scrapeHandler(mux)
+	h := r.scrapeHandler(r.MaximumDocuments, mux)
+
 	if r.StopAtURL != "" || r.CancelAtURL != "" {
 		stopURL := r.StopAtURL
 		if r.CancelAtURL != "" {
 			stopURL = r.CancelAtURL
 		}
-		h = stopHandler(stopURL, r.CancelAtURL != "", r.scrapeHandler(mux))
+		h = stopHandler(stopURL, r.CancelAtURL != "", r.scrapeHandler(r.MaximumDocuments, mux))
 	}
 	f := fetchbot.New(h)
 
@@ -215,7 +226,7 @@ func (r *Runner) Crawl() ([]Document, bool) {
 	}
 	q.Block()
 
-	return r.ingestionSet, true
+	return r.ingestionSet, nil
 }
 
 // stopHandler stops the fetcher if the stopurl is reached. Otherwise it dispatches
@@ -248,9 +259,9 @@ func stopHandler(stopurl string, cancel bool, wrapped fetchbot.Handler) fetchbot
 // scrapeHandler will fire a scraper function on the page if successful response,
 // append the scraped document stored for index ingestion
 // and dispatches the call to the wrapped Handler.
-func (r *Runner) scrapeHandler(wrapped fetchbot.Handler) fetchbot.Handler {
+func (r *Runner) scrapeHandler(n int, wrapped fetchbot.Handler) fetchbot.Handler {
 	return fetchbot.HandlerFunc(func(ctx *fetchbot.Context, res *http.Response, err error) {
-		if err == nil {
+		if err == nil && len(r.ingestionSet) < n {
 			if res.StatusCode == 200 {
 				url := ctx.Cmd.URL().String()
 				responseDocument, err := Scrape(ctx, r.Tags)
@@ -261,7 +272,9 @@ func (r *Runner) scrapeHandler(wrapped fetchbot.Handler) fetchbot.Handler {
 						"error": err,
 					}).Error("an error in scrape handler")
 				}
+				mu.Lock()
 				r.ingestionSet = append(r.ingestionSet, responseDocument)
+				mu.Unlock()
 			}
 			fmt.Printf("[%d] %s %s - %s\n", res.StatusCode, ctx.Cmd.Method(), ctx.Cmd.URL(), res.Header.Get("Content-Type"))
 			log.WithFields(log.Fields{
@@ -270,6 +283,17 @@ func (r *Runner) scrapeHandler(wrapped fetchbot.Handler) fetchbot.Handler {
 				"url":    ctx.Cmd.URL(),
 				"header": res.Header.Get("Content-Type"),
 			}).Info("a scrape handler response")
+		} else if len(r.ingestionSet) >= n {
+			fmt.Printf(">> Max size hit: %v <<\n", len(r.ingestionSet))
+			log.WithFields(log.Fields{
+				"message": ">> Max size hit <<",
+				"size":    len(r.ingestionSet),
+			}).Info("the max size of the ingestion size was hit")
+
+			go func() {
+				ctx.Q.Cancel()
+			}()
+			return
 		}
 		wrapped.Handle(ctx, res, err)
 	})
