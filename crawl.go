@@ -17,15 +17,8 @@ import (
 )
 
 var (
-	mu sync.Mutex // Protect access to dup
-
+	mu  sync.Mutex          // Protect access to dup
 	dup = map[string]bool{} // Duplicates table
-
-	settingLinks = map[string]bool{} // Tracking link settings
-
-	ingestionSet []Document // ingestion data TODO make non global
-
-	badLinks []string // bad links TODO make non global
 )
 
 // A Runner defines the parameters for running a single instance of Hermes ETL
