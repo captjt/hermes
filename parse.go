@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"time"
+
+	log "github.com/Sirupsen/logrus"
 )
 
 type (
@@ -45,11 +47,17 @@ func ParseLinks() Sources {
 	var s Sources
 	data, errRead := ioutil.ReadFile("./data.json")
 	if errRead != nil {
+		log.WithFields(log.Fields{
+			"error": errRead,
+		}).Panic("an error reading data.json file")
 		panic(errRead)
 	}
 
 	errUnmarshal := json.Unmarshal(data, &s)
 	if errUnmarshal != nil {
+		log.WithFields(log.Fields{
+			"error": errUnmarshal,
+		}).Panic("an error unmarshaling data.json file")
 		panic(errUnmarshal)
 	}
 
@@ -62,11 +70,17 @@ func ParseSettings() Settings {
 	var s Settings
 	data, errRead := ioutil.ReadFile("./settings.json")
 	if errRead != nil {
+		log.WithFields(log.Fields{
+			"error": errRead,
+		}).Panic("an error reading settings.json file")
 		panic(errRead)
 	}
 
 	errUnmarshal := json.Unmarshal(data, &s)
 	if errUnmarshal != nil {
+		log.WithFields(log.Fields{
+			"error": errUnmarshal,
+		}).Panic("an error unmarshaling settings.json file")
 		panic(errUnmarshal)
 	}
 

@@ -12,14 +12,15 @@ import (
 
 	"github.com/PuerkitoBio/fetchbot"
 	"github.com/PuerkitoBio/goquery"
+	log "github.com/Sirupsen/logrus"
 	"golang.org/x/net/html"
 )
 
 // Scrape function will take a url and fire off pipelines to scrape titles,
 // paragraphs, divs and return a Document struct with valid title, content and a link
-func Scrape(ctx *fetchbot.Context, cs CustomSettings) (Document, error) {
+func Scrape(ctx *fetchbot.Context, tags []string) (Document, error) {
 	document := Document{}
-	for document = range documentGenerator(rootGenerator(respGenerator(ctx.Cmd.URL().String())), ctx, cs) {
+	for document = range documentGenerator(rootGenerator(respGenerator(ctx.Cmd.URL().String())), ctx, tags) {
 		return document, nil
 	}
 	return document, errors.New("Scraping error")
@@ -33,11 +34,17 @@ func respGenerator(url string) <-chan *http.Response {
 	go func(url string) {
 		req, err := http.NewRequest("GET", url, nil)
 		if err != nil {
-			panic(err)
+			log.WithFields(log.Fields{
+				"error": err,
+			}).Fatal("a response generator scrape fatal GET request error")
+			// panic(err)
 		}
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
-			panic(err)
+			log.WithFields(log.Fields{
+				"error": err,
+			}).Fatal("a response generator scrape fatal Do request error")
+			// panic(err)
 		}
 		out <- resp
 		wg.Done()
@@ -58,7 +65,10 @@ func rootGenerator(in <-chan *http.Response) <-chan *html.Node {
 		go func(resp *http.Response) {
 			root, err := html.Parse(resp.Body)
 			if err != nil {
-				panic(err)
+				log.WithFields(log.Fields{
+					"error": err,
+				}).Fatal("a root generator scrape fatal error")
+				// panic(err)
 			}
 			out <- root
 			wg.Done()
@@ -73,14 +83,14 @@ func rootGenerator(in <-chan *http.Response) <-chan *html.Node {
 
 // documentGenerator function will take in a channel with a pointer to an html.Node
 // type and customized settings and it will fire off scraping mechanisms to return a Document
-func documentGenerator(in <-chan *html.Node, ctx *fetchbot.Context, cs CustomSettings) <-chan Document {
+func documentGenerator(in <-chan *html.Node, ctx *fetchbot.Context, tags []string) <-chan Document {
 	var wg sync.WaitGroup
 	out := make(chan Document)
 	for root := range in {
 		wg.Add(1)
 		go func(root *html.Node) {
 			doc := goquery.NewDocumentFromNode(root)
-			out <- scrapeDocument(ctx, doc, cs.Tags)
+			out <- scrapeDocument(ctx, doc, tags)
 			wg.Done()
 		}(root)
 	}

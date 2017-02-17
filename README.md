@@ -9,12 +9,12 @@ The premise behind all of this is that I wanted to have sort of an all in one wa
 This is a completely fun prototype.  I do plan on abstracting it out eventually and making it a reusable package but for now I am just making it something to kind of simulate a simple ETL of webpage content.
 
 Install
-====================
+=======
 
 `go get github.com/jtaylor32/hermes`
 
 Example
-====================
+=======
 
 **You will need to make sure you follow the example** `data.json` **and** `settings.json` **files**
 
@@ -33,44 +33,58 @@ import (
 func main() {
 	// create an array of Documents
 	var ingestionSet []hermes.Document
-	// parse the data.json with type/links to pass into the crawler
-	src := hermes.ParseLinks()
 
-	// parse the settings.json with settings to pass into hermes
-	settings := hermes.ParseSettings()
+	u, e := url.Parse("http://jt.codes")
+	if e != nil {
+		panic(e)
+	}
 
-	// start the crawler
-	for _, s := range src.Links {
-		u, err := url.Parse(s.RootLink)
-		if err != nil {
-			log.Fatal(err)
-		}
+	r := hermes.Runner{
+		CrawlDelay:       1,
+		CancelDuration:   60,
+		CancelAtURL:      "",
+		StopDuration:     60,
+		StopAtURL:        "",
+		MemStatsInterval: 0,
+		UserAgent:        "(Hermes Bot)",
+		WorkerIdleTTL:    10,
+		AutoClose:        true,
+		URL:              u,
+		Tags:             []string{"div", "h1", "p"},
+		TopLevelDomain:   true,
+		Subdomain:        true,
+	}
 
-		documents, done := hermes.Crawl(settings, s, u)
-		if done {
-			ingestionSet = documents
-		}
+	i, b := r.Crawl()
+	if b {
+		ingestionSet = i
+	}
 
-		fmt.Println("Total Documents in ingestion set: ", len(ingestionSet))
+	fmt.Println("Total Documents in ingestion set: ", len(ingestionSet))
 
-		err := hermes.Store(
-			len(ingestionSet),
-			settings.ElasticsearchHost,
-			settings.ElasticsearchIndex,
-			settings.ElasticsearchType,
-			ingestionSet,
-		)
-		if err != nil {
-			log.Fatal(err)
-		}
+	es := hermes.Elasticsearch{
+		Host:  "http://localhost:9200",
+		Index: "search_index",
+		Type:  "feb_16",
+	}
+
+	in := es.Store(ingestionSet)
+	if in != nil {
+		log.Fatal(e)
 	}
 
 	fmt.Println("Successful ETL 🌎🌍🌏")
 	os.Exit(0)
 }
+
 ```
 
+License
+=======
+
+The [BSD 3-Clause license](http://opensource.org/licenses/BSD-3-Clause), the same as the [Go language](http://golang.org/LICENSE).
+
 Acknowledgments
-====================
+===============
 
 Huge thanks to [PuerkitoBio](https://github.com/PuerkitoBio) and the work he has done on all his projects!

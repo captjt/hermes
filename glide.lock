@@ -1,5 +1,5 @@
-hash: 69cc80a5026e89de97d0c2e0a958244b2d3ec83cfd966963407a6526adff9cae
-updated: 2017-02-08T10:10:00.778319247-05:00
+hash: 94d82e496a95ff549377fb70490e6d671cc46bb8108f3f72115b7f6d2d814ded
+updated: 2017-02-13T10:50:54.734627181-05:00
 imports:
 - name: github.com/andybalholm/cascadia
   version: 349dd0209470eabd9514242c688c403c0926d266
@@ -7,6 +7,8 @@ imports:
   version: 259e93bccc058eb7cecbf2eca5f7703c8987c05f
 - name: github.com/PuerkitoBio/goquery
   version: 152b1a2c8f5d0340f658bb656032a39b94e52958
+- name: github.com/Sirupsen/logrus
+  version: c078b1e43f58d563c74cebe63c85789e76ddb627
 - name: github.com/temoto/robotstxt-go
   version: 99f6b48954d8cafb2f10790957aa747ca7aeb530
 - name: golang.org/x/net
