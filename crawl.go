@@ -315,7 +315,7 @@ func (r *Runner) enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document) {
 		}
 
 		// Resolve address
-		u, err := ctx.Cmd.URL().Parse(val)
+		u, err := url.Parse(val)
 		if err != nil {
 			fmt.Printf("error: resolve URL %s - %s\n", u, err)
 			log.WithFields(log.Fields{
@@ -334,7 +334,7 @@ func (r *Runner) enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document) {
 		}(u.String(), &emailCheck)
 
 		if emailCheck == true {
-			fmt.Printf("[ERR] Email link - %s\n", u.String())
+			// fmt.Printf("[ERR] Email link - %s\n", u.String())
 			log.WithFields(log.Fields{
 				"url":   u.String(),
 				"error": "email link error",
@@ -350,7 +350,7 @@ func (r *Runner) enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document) {
 		}(u, &fragmentCheck)
 
 		if fragmentCheck == true {
-			fmt.Printf("[ERR] URL with fragment tag - %s\n", u.String())
+			// fmt.Printf("[ERR] URL with fragment tag - %s\n", u.String())
 			log.WithFields(log.Fields{
 				"url":   u.String(),
 				"error": "url error with fragment",
@@ -379,7 +379,7 @@ func (r *Runner) enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document) {
 						return
 					}
 				} else {
-					fmt.Printf("catch: out of domain scope -- %s != %s\n", u.Host, r.URL.Host)
+					// fmt.Printf("catch: out of domain scope -- %s != %s\n", u.Host, r.URL.Host)
 					log.WithFields(log.Fields{
 						"host": u.Host,
 						"url":  r.URL.Host,
@@ -421,7 +421,7 @@ func (r *Runner) enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document) {
 						return
 					}
 				} else {
-					fmt.Printf("catch: out of domain scope -- %s != %s\n", u.Host, r.URL.Host)
+					// fmt.Printf("catch: out of domain scope -- %s != %s\n", u.Host, r.URL.Host)
 					log.WithFields(log.Fields{
 						"host": u.Host,
 						"url":  r.URL.Host,
