@@ -14,8 +14,6 @@ This package is completely a _proof-of-concept_ idea to use. The storage layer o
 
 ## Example
 
-**You will need to make sure you follow the example** `data.json` **and** `settings.json` **files**
-
 ```go
 package main
 
