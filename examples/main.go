@@ -10,14 +10,13 @@ import (
 )
 
 func main() {
-	// create an array of Documents
-	var ingestionSet []hermes.Document
-
-	u, e := url.Parse("http://jt.codes")
+	// Parse the seed URL string
+	u, e := url.Parse("http://en.wikipedia.org")
 	if e != nil {
-		panic(e)
+		log.Fatal(e)
 	}
 
+	// Runner with specific settings for the seed
 	r := hermes.Runner{
 		CrawlDelay:       1,
 		CancelDuration:   60,
@@ -30,28 +29,30 @@ func main() {
 		AutoClose:        true,
 		URL:              u,
 		Tags:             []string{"div", "h1", "p"},
+		MaximumDocuments: 30000,
 		TopLevelDomain:   true,
 		Subdomain:        true,
 	}
 
+	// Start the Runner
 	i, b := r.Crawl()
-	if b {
-		ingestionSet = i
+	if b != nil {
+		log.Fatal(b)
 	}
 
-	fmt.Println("Total Documents in ingestion set: ", len(ingestionSet))
-
+	// Elasticsearch settings
 	es := hermes.Elasticsearch{
 		Host:  "http://localhost:9200",
-		Index: "search_index",
-		Type:  "feb_16",
+		Index: "hermes_index",
+		Type:  "hermes_type",
 	}
 
-	in := es.Store(ingestionSet)
+	// Start the storage ingest
+	in := es.Store(len(i), i)
 	if in != nil {
 		log.Fatal(e)
 	}
 
-	fmt.Println("Successful ETL 🌎🌍🌏")
+	fmt.Println("[ ✓ ] 🏃💨")
 	os.Exit(0)
 }

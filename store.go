@@ -1,6 +1,7 @@
 package hermes
 
 import (
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -50,10 +51,8 @@ type (
 
 // Store function will take total documents, es host, es index, es type and the Documents to be ingested.
 // It will return with an error if faulted or will print stats on ingestion process (Total, Requests/sec, Time to ingest)
-func (e *Elasticsearch) Store(docs []Document) error {
+func (e *Elasticsearch) Store(n int, docs []Document) error {
 	rand.Seed(time.Now().UnixNano())
-
-	n := len(docs)
 
 	if e.Host == "" {
 		log.WithFields(log.Fields{
@@ -119,10 +118,20 @@ func (e *Elasticsearch) Store(docs []Document) error {
 	g.Go(func() error {
 		defer close(docsc)
 
-		for i := 0; i < n; i++ {
+		buf := make([]byte, 32)
+		for _, v := range docs {
+
+			_, err := rand.Read(buf)
+			if err != nil {
+				return err
+			}
+			v.ID = base64.URLEncoding.EncodeToString(buf)
+
+			fmt.Printf("new ID: %s\n", v.ID)
+
 			// Send over to 2nd goroutine, or cancel
 			select {
-			case docsc <- docs[i]:
+			case docsc <- v:
 			case <-ctx.Done():
 				return ctx.Err()
 			}

@@ -1,20 +1,18 @@
-<img src="https://github.com/jtaylor32/hermes/blob/master/docs/static_files/power-to-the-masses.png" alt="Boom Hermes" align="right" />
+# Whats is [Hermes](https://en.wikipedia.org/wiki/Hermes)? 🏃💨
 
-Whats is [Hermes](https://en.wikipedia.org/wiki/Hermes)? 🏃💨
-====================
 This is a combination of a couple awesome packages [goquery](https://github.com/PuerkitoBio/goquery) + [fetchbot](https://github.com/PuerkitoBio/fetchbot) that will crawl a list of links and scrape the pages.
 
-The premise behind all of this is that I wanted to have sort of an all in one way to crawl through sites and scrape it's content to store into an Elasticsearch index.
+This package is completely a _proof-of-concept_ idea to use. The storage layer only interacts with Elasticsearch at the moment.
 
-This is a completely fun prototype.  I do plan on abstracting it out eventually and making it a reusable package but for now I am just making it something to kind of simulate a simple ETL of webpage content.
+---
 
-Install
-=======
+![Hermes](https://github.com/jtaylor32/hermes/blob/master/docs/static_files/power-to-the-masses.png "Hermes Logo")
+
+## Install
 
 `go get github.com/jtaylor32/hermes`
 
-Example
-=======
+## Example
 
 **You will need to make sure you follow the example** `data.json` **and** `settings.json` **files**
 
@@ -31,14 +29,13 @@ import (
 )
 
 func main() {
-	// create an array of Documents
-	var ingestionSet []hermes.Document
-
-	u, e := url.Parse("http://jt.codes")
+	// Parse the seed URL string
+	u, e := url.Parse("http://en.wikipedia.org")
 	if e != nil {
-		panic(e)
+		log.Fatal(e)
 	}
 
+	// Runner with specific settings for the seed
 	r := hermes.Runner{
 		CrawlDelay:       1,
 		CancelDuration:   60,
@@ -51,40 +48,51 @@ func main() {
 		AutoClose:        true,
 		URL:              u,
 		Tags:             []string{"div", "h1", "p"},
+		MaximumDocuments: 30000,
 		TopLevelDomain:   true,
 		Subdomain:        true,
 	}
 
+	// Start the Runner
 	i, b := r.Crawl()
-	if b {
-		ingestionSet = i
+	if b != nil {
+		log.Fatal(b)
 	}
 
-	fmt.Println("Total Documents in ingestion set: ", len(ingestionSet))
-
+	// Elasticsearch settings
 	es := hermes.Elasticsearch{
 		Host:  "http://localhost:9200",
-		Index: "search_index",
-		Type:  "feb_16",
+		Index: "hermes_index",
+		Type:  "hermes_type",
 	}
 
-	in := es.Store(ingestionSet)
+	// Start the storage ingest
+	in := es.Store(len(i), i)
 	if in != nil {
 		log.Fatal(e)
 	}
 
-	fmt.Println("Successful ETL 🌎🌍🌏")
+	fmt.Println("[ ✓ ] 🏃💨")
 	os.Exit(0)
 }
-
 ```
 
-License
-=======
+## API Usage
+
+### Runner
+
+Basically a **Runner** is just an easier way to configure a web crawler combined with a scraper. Depending on your *TopLevelDomain* + *Subdomain* flags it will run through all of the nested links starting at the *URL*. The other struct fields will make your Runner more granular as well. The *Tags* are specific HTML tags you would like to pull from pages you are scraping.
+
+A call to `Runner.Crawl()` will start you Runner and return an array of **Documents** and *error*. It will handle all the dynamic scraping and running under the scenes based on your Runner fields/values.
+
+### Elasticsearch
+
+**Elasticsearch** is a struct of an Elasticsearch *host, index, and type*. This is where you can specify where you are storing the Documents from the `Crawl()`.
+
+## License
 
 The [BSD 3-Clause license](http://opensource.org/licenses/BSD-3-Clause), the same as the [Go language](http://golang.org/LICENSE).
 
-Acknowledgments
-===============
+## Acknowledgments
 
 Huge thanks to [PuerkitoBio](https://github.com/PuerkitoBio) and the work he has done on all his projects!
