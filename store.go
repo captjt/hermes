@@ -8,12 +8,20 @@ import (
 	"sync/atomic"
 	"time"
 
-	"strconv"
-
-	log "github.com/Sirupsen/logrus"
 	"golang.org/x/net/context"
 	"golang.org/x/sync/errgroup"
 	"gopkg.in/olivere/elastic.v5"
+)
+
+var (
+	// ErrNilHostParameter defines you cannot have a nil elasticsearch host address
+	ErrNilHostParameter = errors.New("missing host parameter")
+	// ErrNilIndexParameter defines you cannot have a nil elasticsearch index name
+	ErrNilIndexParameter = errors.New("missing index parameter")
+	// ErrNilTypeParameter defines you cannot have a nil elasticsearch type name
+	ErrNilTypeParameter = errors.New("missing type parameters")
+	// ErrNegativeNParameter defines you cannot have a negative value of documents
+	ErrNegativeNParameter = errors.New("n parameter cannot be negative")
 )
 
 type (
@@ -55,52 +63,21 @@ func (e *Elasticsearch) Store(n int, docs []Document) error {
 	rand.Seed(time.Now().UnixNano())
 
 	if e.Host == "" {
-		log.WithFields(log.Fields{
-			"total documents": n,
-			"host":            e.Host,
-			"index":           e.Index,
-			"type":            e.Type,
-		}).Fatal("missing host parameter")
-		return errors.New("missing host parameter")
+		return ErrNilHostParameter
 	}
 	if e.Index == "" {
-		log.WithFields(log.Fields{
-			"total documents": n,
-			"host":            e.Host,
-			"index":           e.Index,
-			"type":            e.Type,
-		}).Fatal("missing index parameter")
-		return errors.New("missing index parameter")
+		return ErrNilIndexParameter
 	}
 	if e.Type == "" {
-		log.WithFields(log.Fields{
-			"total documents": n,
-			"host":            e.Host,
-			"index":           e.Index,
-			"type":            e.Type,
-		}).Fatal("missing type parameter")
-		return errors.New("missing type parameter")
+		return ErrNilTypeParameter
 	}
 	if n <= 0 {
-		log.WithFields(log.Fields{
-			"total documents": n,
-			"host":            e.Host,
-			"index":           e.Index,
-			"type":            e.Type,
-		}).Fatal("total documents must be a positive number")
-		return errors.New("n must be a positive number")
+		return ErrNegativeNParameter
 	}
 
 	// Create an Elasticsearch client
 	client, err := elastic.NewClient(elastic.SetURL(e.Host), elastic.SetSniff(true))
 	if err != nil {
-		log.WithFields(log.Fields{
-			"total documents": n,
-			"host":            e.Host,
-			"index":           e.Index,
-			"type":            e.Type,
-			"error":           err,
-		}).Fatal("an elasticsearch client connection error")
 		return err
 	}
 
@@ -157,9 +134,6 @@ func (e *Elasticsearch) Store(n int, docs []Document) error {
 				// Commit
 				res, err := bulk.Do(ctx)
 				if err != nil {
-					log.WithFields(log.Fields{
-						"error": err,
-					}).Error("an elasticsearch bulk insert error")
 					return err
 				}
 				if res.Errors {
@@ -182,9 +156,6 @@ func (e *Elasticsearch) Store(n int, docs []Document) error {
 		if bulk.NumberOfActions() > 0 {
 			_, err = bulk.Do(ctx)
 			if err != nil {
-				log.WithFields(log.Fields{
-					"error": err,
-				}).Error("an elasticsearch bulk insert error")
 				return err
 			}
 		}
@@ -193,9 +164,6 @@ func (e *Elasticsearch) Store(n int, docs []Document) error {
 
 	// Wait until all goroutines are finished
 	if err := g.Wait(); err != nil {
-		log.WithFields(log.Fields{
-			"error": err,
-		}).Fatal("a global goroutine wait error")
 		return err
 	}
 
@@ -204,12 +172,6 @@ func (e *Elasticsearch) Store(n int, docs []Document) error {
 	sec := int(dur)
 	pps := int64(float64(total) / dur)
 	fmt.Printf("\n\n|- %10d -|- %6d req/s -|- %02d:%02d -|\n", total, pps, sec/60, sec%60)
-	log.WithFields(log.Fields{
-		"total":    total,
-		"req/s":    pps,
-		"duration": strconv.Itoa(sec/60) + ":" + strconv.Itoa(sec%60),
-		"error":    err,
-	}).Info("total storage statistics")
 
 	return nil
 }
