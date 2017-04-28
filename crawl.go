@@ -429,24 +429,15 @@ func (r *Runner) enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document) {
 // remove the www from the URL host
 func normalizeLink(u *url.URL) {
 	s := strings.Split(u.Host, ".")
-	if len(s) == 0 {
-		fmt.Printf("[ERR] URL doesn't have a TLD: %s\n", u.Host)
-		log.WithFields(log.Fields{
-			"url":   u.Host,
-			"error": "url doesn't have a TLD",
-		}).Error("an error in normalizeLink")
-	} else if s[0] == "www" {
+	if s[0] == "www" {
 		u.Host = strings.Join(s[1:], ".")
 	}
+	return
 }
 
 // addLink will add a url to fetchbot's queue and to the global hashmap to audit for duplicates
 func addLink(ctx *fetchbot.Context, u *url.URL) error {
 	if _, err := ctx.Q.SendStringHead(u.String()); err != nil {
-		log.WithFields(log.Fields{
-			"url":   u.String(),
-			"error": err,
-		}).Error("an error in addLink")
 		return err
 	}
 	dup[u.String()] = true
@@ -454,33 +445,35 @@ func addLink(ctx *fetchbot.Context, u *url.URL) error {
 }
 
 // getDomain will parse a url and return the domain with the tld on it (ie. example.com)
-func getDomain(u string) (root string) {
+func getDomain(u string) string {
+	var root string
 	s := strings.Split(u, ".")
 	if len(s) == 0 {
 		root = u
-		return
+		return root
 	}
 	last := len(s) - 1
 	if last == 1 {
 		root = s[0] + "." + s[last]
-		return
+		return root
 	} else if last > 1 {
 		runnerUp := last - 1
 		root = s[runnerUp] + "." + s[last]
 	}
-	return
+	return root
 }
 
 // getTLD will parse a url type and return the top-level domain (.com, .edu, .gov, etc.)
-func getTLD(u string) (tld string) {
+func getTLD(u string) string {
+	var tld string
 	s := strings.Split(u, ".")
 	if len(s) == 0 {
 		tld = u
-		return
+		return tld
 	} else if len(s) > 0 {
 		last := len(s) - 1
 		tld = s[last]
 	}
 	tld = u
-	return
+	return tld
 }
