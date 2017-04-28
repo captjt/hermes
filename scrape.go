@@ -149,7 +149,8 @@ func scrapeDocument(ctx *fetchbot.Context, doc *goquery.Document, tags []string)
 }
 
 // function to take a custom tag or "default" and return text from that in the goquery document
-func returnText(doc *goquery.Document, tag string) (text string) {
+func returnText(doc *goquery.Document, tag string) string {
+	var text string
 	doc.Find("body").Each(func(i int, s *goquery.Selection) {
 		// default to pulling all the div and p tags else pull custom setting tags
 		if tag == "default" {
@@ -159,17 +160,18 @@ func returnText(doc *goquery.Document, tag string) (text string) {
 			text += " " + s.Find(tag).Text()
 		}
 	})
-	return
+	return text
 }
 
 // generate a tag for a link/document based on the first url string
 // (>>sub<< in sub.domain.com or >>domain<< in domain.com)
-func generateTag(u string) (tag string) {
+func generateTag(u string) string {
+	var tag string
 	s := strings.Split(u, ".")
 	if s[0] == "www" && len(s) > 0 {
 		tag = s[1]
 	} else {
 		tag = s[0]
 	}
-	return
+	return tag
 }
