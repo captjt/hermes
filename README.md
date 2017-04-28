@@ -4,6 +4,8 @@ This is a combination of a couple awesome packages [goquery](https://github.com/
 
 This package is completely a _proof-of-concept_ idea to use. The storage layer only interacts with Elasticsearch at the moment.
 
+[As of 4-28-2017]: Will be working on refactoring this full package. Will be a more idiomatic version. This was something initially to learn more about Go and web crawling/scraping.
+
 ---
 
 ![Hermes](https://github.com/jtaylor32/hermes/blob/master/docs/static_files/power-to-the-masses.png "Hermes Logo")
