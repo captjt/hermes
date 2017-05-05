@@ -115,11 +115,6 @@ func (r *Runner) Crawl() ([]Document, error) {
 	// Handle all errors the same
 	mux.HandleErrors(fetchbot.HandlerFunc(func(ctx *fetchbot.Context, res *http.Response, err error) {
 		fmt.Printf("[ERR] %s %s - %s\n", ctx.Cmd.Method(), ctx.Cmd.URL(), err)
-		log.WithFields(log.Fields{
-			"method": ctx.Cmd.Method(),
-			"url":    ctx.Cmd.URL(),
-			"error":  err,
-		}).Error("a fetchbot mux handler error")
 	}))
 
 	// Handle GET requests for html responses, to parse the body and enqueue all links as HEAD
@@ -129,13 +124,6 @@ func (r *Runner) Crawl() ([]Document, error) {
 			// Process the body to find the links
 			doc, err := goquery.NewDocumentFromReader(res.Body)
 			if err != nil {
-				// find the bad links in the documents
-				fmt.Printf("[ERR] %s %s - %s\n", ctx.Cmd.Method(), ctx.Cmd.URL(), err)
-				log.WithFields(log.Fields{
-					"method": ctx.Cmd.Method(),
-					"url":    ctx.Cmd.URL(),
-					"error":  err,
-				}).Error("a goquery document reader error")
 				return
 			}
 			// Enqueue all links as HEAD requests
@@ -148,11 +136,6 @@ func (r *Runner) Crawl() ([]Document, error) {
 		func(ctx *fetchbot.Context, res *http.Response, err error) {
 			if _, err := ctx.Q.SendStringGet(ctx.Cmd.URL().String()); err != nil {
 				fmt.Printf("[ERR] %s %s - %s\n", ctx.Cmd.Method(), ctx.Cmd.URL(), err)
-				log.WithFields(log.Fields{
-					"method": ctx.Cmd.Method(),
-					"url":    ctx.Cmd.URL(),
-					"error":  err,
-				}).Error("a fetchbot Q.SendStringGet error")
 			}
 		}))
 
@@ -212,10 +195,6 @@ func (r *Runner) Crawl() ([]Document, error) {
 	_, err := q.SendStringGet(r.URL.String())
 	if err != nil {
 		fmt.Printf("[ERR] GET %s - %s\n", r.URL.String(), err)
-		log.WithFields(log.Fields{
-			"url":   r.URL.String(),
-			"error": err,
-		}).Error("a queue SendStringGet error starting 'enqueue' seed")
 	}
 	q.Block()
 
@@ -227,20 +206,13 @@ func (r *Runner) Crawl() ([]Document, error) {
 func stopHandler(stopurl string, cancel bool, wrapped fetchbot.Handler) fetchbot.Handler {
 	return fetchbot.HandlerFunc(func(ctx *fetchbot.Context, res *http.Response, err error) {
 		if ctx.Cmd.URL().String() == stopurl {
-
-			fmt.Printf(">>>>> STOP URL %s\n", ctx.Cmd.URL())
-			log.WithFields(log.Fields{
-				"message": ">>>>> STOP URL <<<<<",
-				"url":     ctx.Cmd.URL(),
-			}).Info("the stop url was hit")
-
 			// generally not a good idea to stop/block from a handler goroutine
 			// so do it in a separate goroutine
 			go func() {
 				if cancel {
-					ctx.Q.Cancel()
+					_ = ctx.Q.Cancel()
 				} else {
-					ctx.Q.Close()
+					_ = ctx.Q.Close()
 				}
 			}()
 			return
@@ -256,33 +228,17 @@ func (r *Runner) scrapeHandler(n int, wrapped fetchbot.Handler) fetchbot.Handler
 	return fetchbot.HandlerFunc(func(ctx *fetchbot.Context, res *http.Response, err error) {
 		if err == nil && len(r.ingestionSet) < n {
 			if res.StatusCode == 200 {
-				url := ctx.Cmd.URL().String()
 				responseDocument, err := Scrape(ctx, r.Tags)
 				if err != nil {
-					fmt.Printf("[ERR] SCRAPE URL: %s - %s", url, err)
-					log.WithFields(log.Fields{
-						"url":   ctx.Cmd.URL(),
-						"error": err,
-					}).Error("an error in scrape handler")
+					fmt.Printf("[ERR] scraping: %v", err)
 				}
+
 				mu.Lock()
+				defer mu.Unlock()
 				r.ingestionSet = append(r.ingestionSet, responseDocument)
-				mu.Unlock()
 			}
 			fmt.Printf("[%d] %s %s - %s\n", res.StatusCode, ctx.Cmd.Method(), ctx.Cmd.URL(), res.Header.Get("Content-Type"))
-			log.WithFields(log.Fields{
-				"status": res.StatusCode,
-				"method": ctx.Cmd.Method(),
-				"url":    ctx.Cmd.URL(),
-				"header": res.Header.Get("Content-Type"),
-			}).Info("a scrape handler response")
 		} else if len(r.ingestionSet) >= n {
-			fmt.Printf(">> Max size hit: %v <<\n", len(r.ingestionSet))
-			log.WithFields(log.Fields{
-				"message": ">> Max size hit <<",
-				"size":    len(r.ingestionSet),
-			}).Info("the max size of the ingestion size was hit")
-
 			go func() {
 				ctx.Q.Cancel()
 			}()
@@ -296,25 +252,19 @@ func (r *Runner) scrapeHandler(n int, wrapped fetchbot.Handler) fetchbot.Handler
 // this will pull all the href attributes on pages, check for duplicates and add them to the queue
 func (r *Runner) enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document) {
 	mu.Lock()
+	defer mu.Unlock()
 
 	doc.Find("a[href]").Each(func(i int, s *goquery.Selection) {
 		val, exists := s.Attr("href")
 		if exists == false {
-			fmt.Print("error: address within the document\n")
-			log.WithFields(log.Fields{
-				"error": "address within the document",
-			}).Error("an error in enqueueLinks exists")
+			fmt.Println("[ERR]: address within the document")
 			return
 		}
 
 		// Resolve address
 		u, err := url.Parse(val)
 		if err != nil {
-			fmt.Printf("error: resolve URL %s - %s\n", u, err)
-			log.WithFields(log.Fields{
-				"url":   u,
-				"error": err,
-			}).Error("an error in enqueueLinks resolving url")
+			fmt.Printf("[ERR]: resolve URL %s - %s\n", u, err)
 			return
 		}
 
@@ -327,11 +277,7 @@ func (r *Runner) enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document) {
 		}(u.String(), &emailCheck)
 
 		if emailCheck == true {
-			// fmt.Printf("[ERR] Email link - %s\n", u.String())
-			log.WithFields(log.Fields{
-				"url":   u.String(),
-				"error": "email link error",
-			}).Info("an email catch in enqueueLinks")
+			fmt.Printf("[ERR] Email link - %s\n", u.String())
 			return
 		}
 
@@ -343,11 +289,7 @@ func (r *Runner) enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document) {
 		}(u, &fragmentCheck)
 
 		if fragmentCheck == true {
-			// fmt.Printf("[ERR] URL with fragment tag - %s\n", u.String())
-			log.WithFields(log.Fields{
-				"url":   u.String(),
-				"error": "url error with fragment",
-			}).Info("a fragment catch in enqueueLinks")
+			fmt.Printf("[ERR] URL with fragment tag - %s\n", u.String())
 			return
 		}
 
@@ -364,19 +306,11 @@ func (r *Runner) enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document) {
 				if rootDomain == current {
 					err := addLink(ctx, u)
 					if err != nil {
-						fmt.Printf("error: enqueue head %s - %s\n", u, err)
-						log.WithFields(log.Fields{
-							"url":   u,
-							"error": err,
-						}).Error("an error in enqueueLinks enqueue head")
+						fmt.Printf("[ERR]: enqueue head %s - %s\n", u, err)
 						return
 					}
 				} else {
-					// fmt.Printf("catch: out of domain scope -- %s != %s\n", u.Host, r.URL.Host)
-					log.WithFields(log.Fields{
-						"host": u.Host,
-						"url":  r.URL.Host,
-					}).Info("a link catch out of domain scope")
+					fmt.Printf("catch: out of domain scope -- %s != %s\n", u.Host, r.URL.Host)
 				}
 			}
 
@@ -388,11 +322,7 @@ func (r *Runner) enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document) {
 				if rootTLD == current {
 					err := addLink(ctx, u)
 					if err != nil {
-						fmt.Printf("error: enqueue head %s - %s\n", u, err)
-						log.WithFields(log.Fields{
-							"url":   u,
-							"error": err,
-						}).Error("an error in enqueueLinks enqueue head")
+						fmt.Printf("[ERR]: enqueue head %s - %s\n", u, err)
 						return
 					}
 				}
@@ -406,24 +336,15 @@ func (r *Runner) enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document) {
 				if rootDomain == current {
 					err := addLink(ctx, u)
 					if err != nil {
-						fmt.Printf("error: enqueue head %s - %s\n", u, err)
-						log.WithFields(log.Fields{
-							"url":   u,
-							"error": err,
-						}).Error("an error in enqueueLinks enqueue head")
+						fmt.Printf("[ERR]: enqueue head %s - %s\n", u, err)
 						return
 					}
 				} else {
-					// fmt.Printf("catch: out of domain scope -- %s != %s\n", u.Host, r.URL.Host)
-					log.WithFields(log.Fields{
-						"host": u.Host,
-						"url":  r.URL.Host,
-					}).Info("a link catch out of domain scope")
+					fmt.Printf("catch: out of domain scope -- %s != %s\n", u.Host, r.URL.Host)
 				}
 			}
 		}
 	})
-	mu.Unlock()
 }
 
 // remove the www from the URL host

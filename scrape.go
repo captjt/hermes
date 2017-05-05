@@ -3,109 +3,52 @@ package hermes
 import (
 	"net/http"
 	"strings"
-	"sync"
-
-	"errors"
-
 	"time"
+
+	"net/url"
 
 	"github.com/PuerkitoBio/fetchbot"
 	"github.com/PuerkitoBio/goquery"
-	log "github.com/Sirupsen/logrus"
-	"golang.org/x/net/html"
 )
 
-// Scrape function will take a url and fire off pipelines to scrape titles,
-// paragraphs, divs and return a Document struct with valid title, content and a link
+// Scrape function will take a fetchbot.Context struct and a slice of tags to
+// try and scrape from the document.
 func Scrape(ctx *fetchbot.Context, tags []string) (Document, error) {
-	document := Document{}
-	for document = range documentGenerator(rootGenerator(respGenerator(ctx.Cmd.URL().String())), ctx, tags) {
-		return document, nil
+	document, err := documentResponse(ctx.Cmd.URL())
+	if err != nil {
+		return Document{}, err
 	}
-	return document, errors.New("Scraping error")
+
+	scrapedDocument := scrapeDocument(ctx, document, tags)
+	return scrapedDocument, nil
 }
 
-// function to generate a response from a url pass into it
-func respGenerator(url string) <-chan *http.Response {
-	var wg sync.WaitGroup
-	out := make(chan *http.Response)
-	wg.Add(1)
-	go func(url string) {
-		req, err := http.NewRequest("GET", url, nil)
-		if err != nil {
-			log.WithFields(log.Fields{
-				"error": err,
-			}).Fatal("a response generator scrape fatal GET request error")
-			// panic(err)
-		}
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			log.WithFields(log.Fields{
-				"error": err,
-			}).Fatal("a response generator scrape fatal Do request error")
-			// panic(err)
-		}
-		out <- resp
-		wg.Done()
-	}(url)
-	go func() {
-		wg.Wait()
-		close(out)
-	}()
-	return out
-}
-
-// function to generate an html node with an http.Response pointer passed into it
-func rootGenerator(in <-chan *http.Response) <-chan *html.Node {
-	var wg sync.WaitGroup
-	out := make(chan *html.Node)
-	for resp := range in {
-		wg.Add(1)
-		go func(resp *http.Response) {
-			root, err := html.Parse(resp.Body)
-			if err != nil {
-				log.WithFields(log.Fields{
-					"error": err,
-				}).Fatal("a root generator scrape fatal error")
-				// panic(err)
-			}
-			out <- root
-			wg.Done()
-		}(resp)
+func documentResponse(url *url.URL) (*goquery.Document, error) {
+	// http GET request to url's address
+	req, err := http.NewRequest("GET", url.String(), nil)
+	if err != nil {
+		return &goquery.Document{}, err
 	}
-	go func() {
-		wg.Wait()
-		close(out)
-	}()
-	return out
-}
 
-// documentGenerator function will take in a channel with a pointer to an html.Node
-// type and customized settings and it will fire off scraping mechanisms to return a Document
-func documentGenerator(in <-chan *html.Node, ctx *fetchbot.Context, tags []string) <-chan Document {
-	var wg sync.WaitGroup
-	out := make(chan Document)
-	for root := range in {
-		wg.Add(1)
-		go func(root *html.Node) {
-			doc := goquery.NewDocumentFromNode(root)
-			out <- scrapeDocument(ctx, doc, tags)
-			wg.Done()
-		}(root)
+	// do http GET request to url
+	resp, rerr := http.DefaultClient.Do(req)
+	if rerr != nil {
+		return &goquery.Document{}, rerr
 	}
-	go func() {
-		wg.Wait()
-		close(out)
-	}()
-	return out
+
+	// generate the goquery Document from io.Reader type
+	doc, rrerr := goquery.NewDocumentFromReader(resp.Body)
+	if rrerr != nil {
+		return &goquery.Document{}, rrerr
+	}
+
+	return doc, nil
 }
 
 // function to scrape a goquery document and return a structured Document back
 func scrapeDocument(ctx *fetchbot.Context, doc *goquery.Document, tags []string) Document {
-	var (
-		d       Document
-		content string
-	)
+	var d Document
+	var content string
 
 	// scrape page <Title>
 	doc.Find("head").Each(func(i int, s *goquery.Selection) {

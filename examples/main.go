@@ -11,7 +11,7 @@ import (
 
 func main() {
 	// Parse the seed URL string
-	u, e := url.Parse("http://en.wikipedia.org")
+	u, e := url.Parse("http://jt.codes")
 	if e != nil {
 		log.Fatal(e)
 	}
