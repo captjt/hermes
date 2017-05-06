@@ -6,6 +6,8 @@ This package is completely a _proof-of-concept_ idea to use. The storage layer o
 
 [As of 4-28-2017]: Will be working on refactoring this full package. Will be a more idiomatic version. This was something initially to learn more about Go and web crawling/scraping.
 
+I will add more examples of how to use the newer refactor as well.
+
 ---
 
 ![Hermes](https://github.com/jtaylor32/hermes/blob/master/docs/static_files/power-to-the-masses.png "Hermes Logo")
@@ -13,69 +15,6 @@ This package is completely a _proof-of-concept_ idea to use. The storage layer o
 ## Install
 
 `go get github.com/jtaylor32/hermes`
-
-## Example
-
-```go
-package main
-
-import (
-	"fmt"
-	"log"
-	"net/url"
-	"os"
-
-	"github.com/jtaylor32/hermes"
-)
-
-func main() {
-	// Parse the seed URL string
-	u, e := url.Parse("http://en.wikipedia.org")
-	if e != nil {
-		log.Fatal(e)
-	}
-
-	// Runner with specific settings for the seed
-	r := hermes.Runner{
-		CrawlDelay:       1,
-		CancelDuration:   60,
-		CancelAtURL:      "",
-		StopDuration:     60,
-		StopAtURL:        "",
-		MemStatsInterval: 0,
-		UserAgent:        "(Hermes Bot)",
-		WorkerIdleTTL:    10,
-		AutoClose:        true,
-		URL:              u,
-		Tags:             []string{"div", "h1", "p"},
-		MaximumDocuments: 30000,
-		TopLevelDomain:   true,
-		Subdomain:        true,
-	}
-
-	// Start the Runner
-	i, b := r.Crawl()
-	if b != nil {
-		log.Fatal(b)
-	}
-
-	// Elasticsearch settings
-	es := hermes.Elasticsearch{
-		Host:  "http://localhost:9200",
-		Index: "hermes_index",
-		Type:  "hermes_type",
-	}
-
-	// Start the storage ingest
-	in := es.Store(len(i), i)
-	if in != nil {
-		log.Fatal(e)
-	}
-
-	fmt.Println("[ ✓ ] 🏃💨")
-	os.Exit(0)
-}
-```
 
 ## API Usage
 
@@ -95,4 +34,4 @@ The [BSD 3-Clause license](http://opensource.org/licenses/BSD-3-Clause), the sam
 
 ## Acknowledgments
 
-Huge thanks to [PuerkitoBio](https://github.com/PuerkitoBio) and the work he has done on all his projects!
+Huge thanks to Martin Angers [@mna](https://github.com/mna) and the work he has done on all his projects!
