@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"os"
 	"runtime"
 	"strings"
 	"sync"
@@ -13,12 +12,10 @@ import (
 
 	"github.com/PuerkitoBio/fetchbot"
 	"github.com/PuerkitoBio/goquery"
-	log "github.com/Sirupsen/logrus"
 )
 
-var (
-	mu  sync.Mutex          // Protect access to dup
-	dup = map[string]bool{} // Duplicates table
+const (
+	DefaultUserAgent = "Hermes Bot (github.com/jtaylor32/hermes"
 )
 
 // A Runner defines the parameters for running a single instance of Hermes ETL
@@ -72,44 +69,69 @@ type Runner struct {
 
 	// the ingestionSet is the array of documents that is scraped by the scraper to be sent back for storage.
 	ingestionSet []Document
+
+	// Protect access to dup
+	mu sync.Mutex
+	// Duplicates table
+	dup map[string]bool
 }
 
-func init() {
-	// Log as JSON instead of the default ASCII formatter.
-	log.SetFormatter(&log.JSONFormatter{})
-
-	// File to output logs to
-	now := time.Now()
-	pre := now.Format("2006-01-02")
-	filename := "./" + pre + "-log.log"
-	f, err := os.OpenFile(
-		filename,
-		os.O_CREATE|os.O_RDWR|os.O_APPEND,
-		0755,
-	)
-	if err != nil {
-		panic(err)
+// New returns a default Runner type. These values can be overwritten to whatever
+// after initializing the new Runner reference.
+func New() *Runner {
+	return &Runner{
+		CrawlDelay:       1,
+		CancelDuration:   60,
+		CancelAtURL:      "",
+		StopDuration:     60,
+		StopAtURL:        "",
+		MemStatsInterval: 0,
+		UserAgent:        DefaultUserAgent,
+		WorkerIdleTTL:    10,
+		AutoClose:        true,
+		MaximumDocuments: 100,
+		TopLevelDomain:   true,
+		Subdomain:        true,
 	}
-
-	// Output to filename
-	log.SetOutput(f)
-
-	// Output to stdout instead of the default stderr
-	// log.SetOutput(os.Stdout)
-
-	// Only log the warning severity or above.
-	log.SetLevel(log.InfoLevel)
 }
+
+// func init() {
+// 	// Log as JSON instead of the default ASCII formatter.
+// 	log.SetFormatter(&log.JSONFormatter{})
+
+// 	// File to output logs to
+// 	now := time.Now()
+// 	pre := now.Format("2006-01-02")
+// 	filename := "./" + pre + "-log.log"
+// 	f, err := os.OpenFile(
+// 		filename,
+// 		os.O_CREATE|os.O_RDWR|os.O_APPEND,
+// 		0755,
+// 	)
+// 	if err != nil {
+// 		panic(err)
+// 	}
+
+// 	// Output to filename
+// 	log.SetOutput(f)
+
+// 	// Output to stdout instead of the default stderr
+// 	// log.SetOutput(os.Stdout)
+
+// 	// Only log the warning severity or above.
+// 	log.SetLevel(log.InfoLevel)
+// }
 
 // Crawl function that will take a url string and start firing out some crawling functions
 // it will return true/false based on the url root it starts with.
 func (r *Runner) Crawl() ([]Document, error) {
-	// Create the muxer
+	r.dup = make(map[string]bool)
 
 	if r.MaximumDocuments < 0 {
 		return r.ingestionSet, errors.New("you cannot have a negative document size")
 	}
 
+	// Create the muxer
 	mux := fetchbot.NewMux()
 
 	// Handle all errors the same
@@ -191,7 +213,7 @@ func (r *Runner) Crawl() ([]Document, error) {
 	}
 
 	// Enqueue the seed, which is the first entry in the dup map
-	dup[r.URL.String()] = true
+	r.dup[r.URL.String()] = true
 	_, err := q.SendStringGet(r.URL.String())
 	if err != nil {
 		fmt.Printf("[ERR] GET %s - %s\n", r.URL.String(), err)
@@ -228,13 +250,13 @@ func (r *Runner) scrapeHandler(n int, wrapped fetchbot.Handler) fetchbot.Handler
 	return fetchbot.HandlerFunc(func(ctx *fetchbot.Context, res *http.Response, err error) {
 		if err == nil && len(r.ingestionSet) < n {
 			if res.StatusCode == 200 {
-				responseDocument, err := Scrape(ctx, r.Tags)
+				responseDocument, err := scrape(ctx, r.Tags)
 				if err != nil {
 					fmt.Printf("[ERR] scraping: %v", err)
 				}
 
-				mu.Lock()
-				defer mu.Unlock()
+				r.mu.Lock()
+				defer r.mu.Unlock()
 				r.ingestionSet = append(r.ingestionSet, responseDocument)
 			}
 			fmt.Printf("[%d] %s %s - %s\n", res.StatusCode, ctx.Cmd.Method(), ctx.Cmd.URL(), res.Header.Get("Content-Type"))
@@ -248,11 +270,14 @@ func (r *Runner) scrapeHandler(n int, wrapped fetchbot.Handler) fetchbot.Handler
 	})
 }
 
-// enqueueLinks will make sure we are adding links to the queue to be processed for crawling/scraping
-// this will pull all the href attributes on pages, check for duplicates and add them to the queue
+// enqueueLinks will make sure we are adding links to the queue to be processed
+// for crawling and scraping. This will pull all of the hrefs within an html
+// page. The nature of this function will also check for duplicates that have
+// already been crawled and scraped. If they have not been added to the queue
+// they will be appended to the queue.
 func (r *Runner) enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document) {
-	mu.Lock()
-	defer mu.Unlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
 	doc.Find("a[href]").Each(func(i int, s *goquery.Selection) {
 		val, exists := s.Attr("href")
@@ -297,14 +322,17 @@ func (r *Runner) enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document) {
 		normalizeLink(u)
 
 		// catch the duplicate urls here before trying to add them to the queue
-		if !dup[u.String()] {
+		if !r.dup[u.String()] {
 			// tld & subdomain
 			if r.TopLevelDomain == true && r.Subdomain == true {
 				rootDomain := getDomain(r.URL.Host)
 				current := getDomain(u.Host)
 
 				if rootDomain == current {
-					err := addLink(ctx, u)
+					if _, err := ctx.Q.SendStringHead(u.String()); err != nil {
+						return
+					}
+					r.dup[u.String()] = true
 					if err != nil {
 						fmt.Printf("[ERR]: enqueue head %s - %s\n", u, err)
 						return
@@ -320,7 +348,10 @@ func (r *Runner) enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document) {
 				current := getTLD(u.Host)
 
 				if rootTLD == current {
-					err := addLink(ctx, u)
+					if _, err := ctx.Q.SendStringHead(u.String()); err != nil {
+						return
+					}
+					r.dup[u.String()] = true
 					if err != nil {
 						fmt.Printf("[ERR]: enqueue head %s - %s\n", u, err)
 						return
@@ -334,7 +365,10 @@ func (r *Runner) enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document) {
 				current := getDomain(u.Host)
 
 				if rootDomain == current {
-					err := addLink(ctx, u)
+					if _, err := ctx.Q.SendStringHead(u.String()); err != nil {
+						return
+					}
+					r.dup[u.String()] = true
 					if err != nil {
 						fmt.Printf("[ERR]: enqueue head %s - %s\n", u, err)
 						return
@@ -354,15 +388,6 @@ func normalizeLink(u *url.URL) {
 		u.Host = strings.Join(s[1:], ".")
 	}
 	return
-}
-
-// addLink will add a url to fetchbot's queue and to the global hashmap to audit for duplicates
-func addLink(ctx *fetchbot.Context, u *url.URL) error {
-	if _, err := ctx.Q.SendStringHead(u.String()); err != nil {
-		return err
-	}
-	dup[u.String()] = true
-	return nil
 }
 
 // getDomain will parse a url and return the domain with the tld on it (ie. example.com)

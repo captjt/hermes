@@ -16,23 +16,11 @@ func main() {
 		log.Fatal(e)
 	}
 
-	// Runner with specific settings for the seed
-	r := hermes.Runner{
-		CrawlDelay:       1,
-		CancelDuration:   60,
-		CancelAtURL:      "",
-		StopDuration:     60,
-		StopAtURL:        "",
-		MemStatsInterval: 0,
-		UserAgent:        "(Hermes Bot)",
-		WorkerIdleTTL:    10,
-		AutoClose:        true,
-		URL:              u,
-		Tags:             []string{"div", "h1", "p"},
-		MaximumDocuments: 30000,
-		TopLevelDomain:   true,
-		Subdomain:        true,
-	}
+	r := hermes.New()
+
+	// override custom fields on the new Runner
+	r.URL = u
+	r.Tags = []string{"div", "h1", "p"}
 
 	// Start the Runner
 	i, b := r.Crawl()

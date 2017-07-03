@@ -2,10 +2,9 @@ package hermes
 
 import (
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
-
-	"net/url"
 
 	"github.com/PuerkitoBio/fetchbot"
 	"github.com/PuerkitoBio/goquery"
@@ -13,7 +12,7 @@ import (
 
 // Scrape function will take a fetchbot.Context struct and a slice of tags to
 // try and scrape from the document.
-func Scrape(ctx *fetchbot.Context, tags []string) (Document, error) {
+func scrape(ctx *fetchbot.Context, tags []string) (Document, error) {
 	document, err := documentResponse(ctx.Cmd.URL())
 	if err != nil {
 		return Document{}, err
